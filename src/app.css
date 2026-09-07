@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, monospace;
+
+  /* Accent, matching the meter's default pink. */
+  --color-accent-400: #ff8ecb;
+  --color-accent-500: #ff6bb8;
+  --color-accent-600: #e0489b;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The meter renders numbers in a monospace face so columns don't jitter as values tick. */
+.tabular {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}

@@ -1,0 +1,14 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "trailingComma": "none",
+  "tabWidth": 2,
+  "printWidth": 120,
+  "endOfLine": "crlf",
+  "sortImports": true,
+  "sortTailwindcss": {
+    "stylesheet": "./src/app.css"
+  },
+  "svelte": true,
+  "sortPackageJson": true,
+  "ignorePatterns": [".DS_Store", "node_modules", "/build", "/.svelte-kit", "/package", "package-lock.json"]
+}

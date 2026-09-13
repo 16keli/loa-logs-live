@@ -34,6 +34,9 @@ jobs:
         env:
           # Project pages live under /<repo>/, which svelte.config.js reads as paths.base.
           BASE_PATH: /${{ github.event.repository.name }}
+          # URL of the turn-credentials Worker (a repository variable, not a secret). When unset the
+          # viewer connects without a relay, which fails for viewers on restrictive networks.
+          VITE_TURN_CREDENTIALS_URL: ${{ vars.TURN_CREDENTIALS_URL }}
         run: npm run build
 
       - uses: actions/configure-pages@v5

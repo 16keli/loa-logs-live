@@ -12,6 +12,27 @@ any of this data — the stream goes host → viewer directly, and this site onl
 To share, a host enables **Experimental Features** in LOA Logs settings and presses the share button
 in the live meter, which copies `https://live.lostark.bible/<peer-id>` to their clipboard.
 
+### Relay (TURN)
+
+A direct connection is impossible for some viewers: carrier-grade NAT on mobile data and hotspots,
+school and office firewalls, some VPNs. Those viewers connect through a Cloudflare TURN relay, which
+forwards the stream without being able to read it (WebRTC data is end-to-end encrypted). PeerJS's
+built-in relays no longer exist, so this is required, not optional.
+
+Relay credentials are short-lived and come from the Worker in [`turn-credentials/`](turn-credentials),
+which keeps the Cloudflare API token off the static site. Setup:
+
+1. In the Cloudflare dashboard, go to **Realtime → TURN Server** and create a TURN key. Note its
+   **Key ID** and **API token**.
+2. From `turn-credentials/`, run `npx wrangler secret put TURN_KEY_ID`, then
+   `npx wrangler secret put TURN_KEY_API_TOKEN`, then `npx wrangler deploy`. Check that
+   `ALLOWED_ORIGINS` in `wrangler.toml` lists the origin the viewer is served from.
+3. In this repository's **Settings → Secrets and variables → Actions → Variables**, add
+   `TURN_CREDENTIALS_URL` set to the deployed Worker URL, then redeploy.
+
+Without that variable the viewer still works, but only for viewers who can connect directly. For local
+development, put `VITE_TURN_CREDENTIALS_URL=<worker url>` in `.env.local`.
+
 ## Protocol
 
 All messages are `{ type, data }`, host → viewer only. The viewer never sends anything back.

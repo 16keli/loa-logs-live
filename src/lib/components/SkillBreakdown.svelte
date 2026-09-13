@@ -12,31 +12,44 @@
 
   let { row, onback }: { row: PlayerRow; onback: () => void } = $props();
 
-  /** Same rule as the player list: a column shows when it's wanted *and* some skill has data for it. */
+  /** Same rule as the player list: a column shows when it's wanted *and* has data, per the meter's show(). */
   let visibleColumns = $derived.by(() => {
-    const skills = row.skills.map((s) => s.skill);
-    const any = (pick: (skill: (typeof skills)[number]) => number | undefined) =>
+    const skills = row.skills;
+    const any = (pick: (skill: (typeof skills)[number]) => number | null | undefined) =>
       skills.some((s) => (pick(s) ?? 0) > 0);
+    const neutral = !row.isSupportSpec && row.encounterHasRdps;
 
     const hasData: Record<BreakdownColumnKey, boolean> = {
       damage: true,
+      unbuffedDamage: row.anyUnbuffedDamage,
+      ndmg: neutral,
+      buffedDamage: row.isSupport,
       dps: true,
+      unbuffedDps: row.anyUnbuffedDamage,
+      ndps: neutral,
+      buffedDps: row.isSupport,
       damagePercent: true,
+      buffedDamagePercent: row.isSupport,
       crit: any((s) => s.hits),
-      critDamage: any((s) => s.critDamage),
-      frontAttack: any((s) => s.frontAttackDamage),
-      backAttack: any((s) => s.backAttackDamage),
-      supportBuff: any((s) => s.buffedBySupport),
-      brand: any((s) => s.debuffedBySupport),
-      identity: any((s) => s.buffedByIdentity),
-      hat: any((s) => s.buffedByHat),
+      critDamage: any((s) => s.skill.critDamage),
+      frontAttackHits: any((s) => s.skill.frontAttacks),
+      frontAttack: any((s) => s.skill.frontAttacks),
+      backAttackHits: any((s) => s.skill.backAttacks),
+      backAttack: any((s) => s.skill.backAttacks),
+      supportBuff: any((s) => s.skill.buffedBySupport),
+      brand: any((s) => s.skill.debuffedBySupport),
+      identity: any((s) => s.skill.buffedByIdentity),
+      hat: any((s) => s.skill.buffedByHat),
       avgPerHit: any((s) => s.hits),
       avgPerCast: any((s) => s.casts),
-      maxHit: any((s) => s.maxDamage),
+      maxHit: any((s) => s.maxHit),
       casts: true,
       cpm: true,
       hits: true,
-      hpm: true
+      hpm: true,
+      cooldownRatio: any((s) => s.skill.timeAvailable),
+      stagger: row.stagger > 0,
+      damageReduced: any((s) => s.damageReduced)
     };
 
     return (Object.keys(breakdownColumnLabels) as BreakdownColumnKey[]).filter(
@@ -49,23 +62,44 @@
     return { value: String(value), unit, title: Math.round(n).toLocaleString() };
   }
 
+  const dash = { value: "-" };
+
   /** The player's totals. Per-skill-only columns read "-", as in the meter's breakdown header row. */
   function totalCell(column: BreakdownColumnKey): { value: string; unit?: string; title?: string } {
+    const received = row.entity.damageStats.rdpsDamageReceived > 0;
     switch (column) {
       case "damage":
         return abbreviated(row.damage);
+      case "unbuffedDamage":
+        return row.anyUnbuffedDamage ? abbreviated(row.unbuffedDamage) : dash;
+      case "ndmg":
+        return received ? abbreviated(row.baseDamage) : dash;
+      case "buffedDamage":
+        return row.totalDamageBuffed > 0 ? abbreviated(row.totalDamageBuffed) : dash;
       case "dps":
         return abbreviated(row.dps);
+      case "unbuffedDps":
+        return row.anyUnbuffedDamage ? abbreviated(row.unbuffedDps) : dash;
+      case "ndps":
+        return received ? abbreviated(row.ndps) : dash;
+      case "buffedDps":
+        return row.totalDamageBuffed > 0 ? abbreviated(row.totalDpsBuffed) : dash;
       case "damagePercent":
         return { value: formatPercent(row.damagePercent) };
+      case "buffedDamagePercent":
+        return row.totalDamageBuffed > 0 ? { value: formatPercent(row.totalDamageBuffedPercent) } : dash;
       case "crit":
-        return { value: formatPercent(row.critPercent, 0) };
+        return { value: formatPercent(row.critPercent) };
       case "critDamage":
-        return { value: formatPercent(row.critDamagePercent, 0) };
+        return { value: formatPercent(row.critDamagePercent) };
+      case "frontAttackHits":
+        return { value: formatPercent(row.frontAttackHitPercent) };
       case "frontAttack":
-        return { value: formatPercent(row.frontAttackPercent, 0) };
+        return { value: formatPercent(row.frontAttackPercent) };
+      case "backAttackHits":
+        return { value: formatPercent(row.backAttackHitPercent) };
       case "backAttack":
-        return { value: formatPercent(row.backAttackPercent, 0) };
+        return { value: formatPercent(row.backAttackPercent) };
       case "supportBuff":
         return { value: formatPercent(row.supportBuffPercent) };
       case "brand":
@@ -86,6 +120,12 @@
         return { value: String(row.hits) };
       case "hpm":
         return { value: row.hitsPerMinute.toFixed(1) };
+      case "cooldownRatio":
+        return dash;
+      case "stagger":
+        return row.stagger > 0 ? abbreviated(row.stagger) : dash;
+      case "damageReduced":
+        return row.totalDamageReduced > 0 ? abbreviated(row.totalDamageReduced) : dash;
     }
   }
 </script>
@@ -97,10 +137,11 @@
     style="min-width: calc(10rem + {visibleColumns.length} * 3.5rem)"
   >
     <thead class="sticky top-0 z-10 bg-neutral-950/80 backdrop-blur">
-      <tr class="h-6 text-xs tracking-wide text-neutral-400 uppercase select-none">
+      <!-- No uppercase: the meter's labels are case-sensitive (nDPS, bD%, MaxH). -->
+      <tr class="h-6 text-xs text-neutral-400 select-none">
         <th class="max-w-0 pl-1.5 text-left font-medium">
           <button
-            class="flex items-center gap-1 tracking-normal text-neutral-200 normal-case hover:text-white"
+            class="flex items-center gap-1 text-neutral-200 hover:text-white"
             title="Back to Overview"
             onclick={onback}
           >

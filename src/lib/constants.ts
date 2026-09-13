@@ -49,6 +49,13 @@ export function classColor(className: string): string {
   return classColors[className] ?? UNKNOWN_CLASS_COLOR;
 }
 
+/** Support specializations. From `SUPPORT_SPECS` in `src/lib/utils.ts`. */
+const SUPPORT_SPECS = ["Desperate Salvation", "Full Bloom", "Blessed Aura", "Liberator"];
+
+export function isSupportSpec(spec?: string): boolean {
+  return !!spec && SUPPORT_SPECS.includes(spec);
+}
+
 export function classIcon(classId: number): string {
   // `base` is empty in dev and on a root deployment, and "/<repo>" on GitHub project pages.
   return `${base}/images/classes/${classId}.png`;

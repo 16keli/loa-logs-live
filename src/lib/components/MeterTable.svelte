@@ -10,19 +10,35 @@
    * its aggregate flags, so emptiness is the only signal that a column is irrelevant to this fight.
    */
   let visibleColumns = $derived.by(() => {
-    const { crit, frontAttack, backAttack, supportBuff, brand, identity, hat, deaths } = viewer.aggregates;
+    const a = viewer.aggregates;
+    // Mirrors each column's show() in the meter's DamageMeterColumns.svelte.
     const hasData: Record<ColumnKey, boolean> = {
+      deadFor: a.deadFor,
+      deaths: a.deaths,
+      incapacitated: a.incapacitated,
       damage: true,
-      damagePercent: true,
+      damagePercent: a.notSolo,
+      unbuffedDamage: a.unbuffed,
+      ndmg: a.rdps,
+      rdmg: a.rdps,
       dps: true,
-      crit,
-      frontAttack,
-      backAttack,
-      supportBuff,
-      brand,
-      identity,
-      hat,
-      deaths
+      ndps: a.rdps,
+      rdps: a.rdps,
+      unbuffedDps: a.unbuffed,
+      supportContrib: a.supportContrib,
+      rdpsContrib: a.rdps,
+      crit: a.crit,
+      critDamage: a.crit,
+      frontAttackHits: a.frontAttack,
+      frontAttack: a.frontAttack,
+      backAttackHits: a.backAttack,
+      backAttack: a.backAttack,
+      supportBuff: a.supportBuff,
+      brand: a.brand,
+      identity: a.identity,
+      hat: a.hat,
+      stagger: a.stagger,
+      counters: a.counters
     };
 
     return (Object.keys(columnLabels) as ColumnKey[]).filter((c) => settings.columns[c] && hasData[c]);
@@ -46,8 +62,9 @@
         style="min-width: calc(10rem + {visibleColumns.length} * 3.5rem)"
       >
         <thead>
-          <tr class="h-6 text-xs tracking-wide text-neutral-400 uppercase select-none">
-            <th class="max-w-0 pl-1.5 text-left font-medium">
+          <!-- No uppercase: the meter's labels are case-sensitive (nDPS, uDMG, rCon%). -->
+          <tr class="h-6 text-xs text-neutral-400 select-none">
+            <th class="max-w-0 pl-1.5 text-left font-medium tracking-wide uppercase">
               {#if settings.splitParties && groups.length > 1}
                 Party {i + 1}
               {/if}

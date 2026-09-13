@@ -1,6 +1,6 @@
 <script lang="ts">
   import { classIcon } from "$lib/constants";
-  import { abbreviateNumberSplit, formatPercent } from "$lib/format";
+  import { abbreviateNumber, abbreviateNumberSplit, formatPercent } from "$lib/format";
   import { type ColumnKey, settings } from "$lib/settings.svelte";
   import type { PlayerRow } from "$lib/viewer.svelte";
   import { cubicOut } from "svelte/easing";
@@ -24,23 +24,90 @@
     width.set(row.barWidth);
   });
 
-  let damage = $derived(abbreviateNumberSplit(row.damage));
-  let dps = $derived(abbreviateNumberSplit(row.dps));
+  type Cell = { value: string; unit?: string; title?: string };
 
-  function cell(column: ColumnKey): { value: string; unit?: string; title?: string } {
+  function amount(n: number, title?: string): Cell {
+    const [value, unit] = abbreviateNumberSplit(n);
+    return { value: String(value), unit, title: title ?? Math.round(n).toLocaleString() };
+  }
+
+  // Values and tooltips follow the snippets in the meter's DamageMeterColumns.svelte.
+  function cell(column: ColumnKey): Cell {
     switch (column) {
+      case "deadFor": {
+        const seconds = row.deadForSeconds;
+        return { value: seconds === null ? "" : `${seconds.toFixed(0)}s` };
+      }
+      case "deaths":
+        return { value: row.deaths > 0 ? String(row.deaths) : "-" };
+      case "incapacitated": {
+        const { total, knockDown, cc } = row.incapacitatedMs;
+        return {
+          value: `${(total / 1000).toFixed(1)}s`,
+          title: `Knockdowns: ${(knockDown / 1000).toFixed(1)}s\nCrowd control: ${(cc / 1000).toFixed(1)}s`
+        };
+      }
       case "damage":
-        return { value: String(damage[0]), unit: damage[1], title: row.damage.toLocaleString() };
+        return amount(row.damage);
       case "damagePercent":
         return { value: formatPercent(row.damagePercent) };
+      case "unbuffedDamage":
+        if (row.isSupport)
+          return amount(row.totalDamageBuffed, `Total Damage Buffed: ${abbreviateNumber(row.totalDamageBuffed)}`);
+        if (!row.anyUnbuffedDamage) return { value: "-" };
+        return amount(
+          row.unbuffedDamage,
+          `Base: ${abbreviateNumber(row.unbuffedDamage)}\nBuffed: ${abbreviateNumber(row.damage - row.unbuffedDamage)}`
+        );
+      case "ndmg":
+        return amount(row.baseDamage);
+      case "rdmg":
+        return amount(row.raidDamage);
       case "dps":
-        return { value: String(dps[0]), unit: dps[1], title: Math.round(row.dps).toLocaleString() };
+        return amount(row.dps);
+      case "ndps":
+        return amount(
+          row.ndps,
+          `nDPS: ${Math.round(row.ndps).toLocaleString()}\nSelf DMG: ${abbreviateNumber(row.baseDamage)}`
+        );
+      case "rdps":
+        return amount(
+          row.rdps,
+          `rDPS: ${Math.round(row.rdps).toLocaleString()}\nSelf DMG: ${abbreviateNumber(row.baseDamage)}\n` +
+            `Outgoing: ${abbreviateNumber(row.entity.damageStats.rdpsDamageGiven)}`
+        );
+      case "unbuffedDps":
+        if (row.isSupport) return amount(row.totalDpsBuffed, `Buff DPS: ${abbreviateNumber(row.totalDpsBuffed)}`);
+        if (!row.anyUnbuffedDamage) return { value: "-" };
+        return amount(row.unbuffedDps);
+      case "supportContrib":
+        if (row.isSupport) {
+          const pct = formatPercent(row.supportContribPercent);
+          return { value: pct, title: `The support contributed ${pct} damage to the party with primary buffs` };
+        }
+        if (row.anyUnbuffedDamage) {
+          const pct = formatPercent(row.buffedShareOfOwnDamage);
+          return { value: pct, title: `The support contributed ${pct} of the damage from primary buffs` };
+        }
+        return { value: "-" };
+      case "rdpsContrib":
+        if (row.rdpsContribDamage <= 0) return { value: "-" };
+        return {
+          value: formatPercent(row.rdpsContribPercent),
+          title: `${row.isSupport ? "Given" : "Received"}: ${abbreviateNumber(row.rdpsContribDamage)}`
+        };
       case "crit":
-        return { value: formatPercent(row.critPercent, 0) };
+        return { value: formatPercent(row.critPercent) };
+      case "critDamage":
+        return { value: formatPercent(row.critDamagePercent) };
+      case "frontAttackHits":
+        return { value: formatPercent(row.frontAttackHitPercent) };
       case "frontAttack":
-        return { value: formatPercent(row.frontAttackPercent, 0) };
+        return { value: formatPercent(row.frontAttackPercent) };
+      case "backAttackHits":
+        return { value: formatPercent(row.backAttackHitPercent) };
       case "backAttack":
-        return { value: formatPercent(row.backAttackPercent, 0) };
+        return { value: formatPercent(row.backAttackPercent) };
       case "supportBuff":
         return { value: formatPercent(row.supportBuffPercent) };
       case "brand":
@@ -49,8 +116,10 @@
         return { value: formatPercent(row.identityPercent) };
       case "hat":
         return { value: formatPercent(row.hatPercent) };
-      case "deaths":
-        return { value: row.deaths > 0 ? String(row.deaths) : "-" };
+      case "stagger":
+        return row.stagger > 0 ? amount(row.stagger) : { value: "-" };
+      case "counters":
+        return { value: String(row.counters) };
     }
   }
 </script>

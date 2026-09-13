@@ -21,26 +21,47 @@
   }
 
   /** Special skills ignore crits, positionals and buffs, so those columns read "-" as in the meter. */
-  function unlessSpecial(value: number, decimals?: number): { value: string } {
-    return { value: skill.isSpecial ? "-" : formatPercent(value, decimals) };
+  function unlessSpecial(value: number): { value: string } {
+    return { value: skill.isSpecial ? "-" : formatPercent(value) };
   }
 
+  const dash = { value: "-" };
+
+  // Values follow the snippets in the meter's PlayerBreakdownColumns.svelte.
   function cell(column: BreakdownColumnKey): { value: string; unit?: string; title?: string } {
     switch (column) {
       case "damage":
         return abbreviated(skill.damage);
+      case "unbuffedDamage":
+        return skill.skill.special || !skill.hasReceivedBuffs ? dash : abbreviated(skill.unbuffedDamage);
+      case "ndmg":
+        return skill.neutralDamage === null ? dash : abbreviated(skill.neutralDamage);
+      case "buffedDamage":
+        return skill.buffedDamage > 0 ? abbreviated(skill.buffedDamage) : dash;
       case "dps":
         return abbreviated(skill.dps);
+      case "unbuffedDps":
+        return skill.skill.special || !skill.hasReceivedBuffs ? dash : abbreviated(skill.unbuffedDps);
+      case "ndps":
+        return skill.neutralDps === null ? dash : abbreviated(skill.neutralDps);
+      case "buffedDps":
+        return skill.buffedDamage > 0 ? abbreviated(skill.buffedDps) : dash;
       case "damagePercent":
         return { value: formatPercent(skill.damagePercent) };
+      case "buffedDamagePercent":
+        return skill.buffedDamage > 0 ? { value: formatPercent(skill.buffedDamagePercent) } : dash;
       case "crit":
-        return unlessSpecial(skill.critPercent, 0);
+        return unlessSpecial(skill.critPercent);
       case "critDamage":
-        return unlessSpecial(skill.critDamagePercent, 0);
+        return unlessSpecial(skill.critDamagePercent);
+      case "frontAttackHits":
+        return unlessSpecial(skill.frontAttackHitPercent);
       case "frontAttack":
-        return unlessSpecial(skill.frontAttackPercent, 0);
+        return unlessSpecial(skill.frontAttackPercent);
+      case "backAttackHits":
+        return unlessSpecial(skill.backAttackHitPercent);
       case "backAttack":
-        return unlessSpecial(skill.backAttackPercent, 0);
+        return unlessSpecial(skill.backAttackPercent);
       case "supportBuff":
         return unlessSpecial(skill.supportBuffPercent);
       case "brand":
@@ -64,6 +85,12 @@
         return { value: String(skill.hits) };
       case "hpm":
         return { value: skill.hitsPerMinute.toFixed(1) };
+      case "cooldownRatio":
+        return skill.cooldownRatio === null ? dash : { value: formatPercent(skill.cooldownRatio) };
+      case "stagger":
+        return skill.stagger > 0 ? abbreviated(skill.stagger) : dash;
+      case "damageReduced":
+        return skill.damageReduced > 0 ? abbreviated(skill.damageReduced) : dash;
     }
   }
 </script>

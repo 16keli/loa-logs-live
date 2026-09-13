@@ -19,7 +19,7 @@
 
   onMount(() => {
     // Local clock for the duration and DPS, so numbers move between the host's 1 Hz frames.
-    const clock = setInterval(() => (viewer.now = Date.now()), 1000);
+    const clock = setInterval(() => viewer.tick(), 1000);
     return () => clearInterval(clock);
   });
 

@@ -1,0 +1,13 @@
+# Cloudflare Worker that issues TURN credentials to the viewer. See worker.js.
+#
+# Deploy from this directory:
+#   npx wrangler secret put TURN_KEY_ID
+#   npx wrangler secret put TURN_KEY_API_TOKEN
+#   npx wrangler deploy
+name = "loa-logs-live-turn"
+main = "worker.js"
+compatibility_date = "2026-09-01"
+
+[vars]
+# Origins that may fetch credentials: the deployed viewer, and the local dev server.
+ALLOWED_ORIGINS = "https://16keli.github.io,http://localhost:5173"

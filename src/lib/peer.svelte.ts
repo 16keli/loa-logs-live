@@ -1,6 +1,7 @@
 import { ungzip } from "pako";
 import { type DataConnection, Peer } from "peerjs";
 
+import { getIceServers } from "./ice";
 import { asLiveMessage, type EncounterFrame } from "./protocol";
 import type { Encounter, EncounterDamageStats } from "./types";
 import type { ViewerState } from "./viewer.svelte";
@@ -29,6 +30,8 @@ export class LiveConnection {
   #registries: BuffRegistries | null = null;
   #viewer: ViewerState;
   #peerId = "";
+  /** Bumped by every teardown, so a connect still waiting on ICE servers knows it was superseded. */
+  #attempt = 0;
 
   constructor(viewer: ViewerState) {
     this.#viewer = viewer;
@@ -42,14 +45,20 @@ export class LiveConnection {
     this.status = "connecting";
     this.error = null;
 
-    const peer = new Peer();
-    this.#peer = peer;
+    const attempt = this.#attempt;
+    void getIceServers().then((iceServers) => {
+      // A reconnect or teardown happened while the relay credentials were loading.
+      if (attempt !== this.#attempt) return;
 
-    peer.on("error", (e) => this.#fail(e.message || "Signalling server error"));
+      const peer = new Peer({ config: { iceServers } });
+      this.#peer = peer;
 
-    // The peer may not have an id yet on a fresh page load.
-    if (peer.id) this.#open(peer);
-    else peer.once("open", () => this.#open(peer));
+      peer.on("error", (e) => this.#fail(e.message || "Signalling server error"));
+
+      // The peer may not have an id yet on a fresh page load.
+      if (peer.id) this.#open(peer);
+      else peer.once("open", () => this.#open(peer));
+    });
   }
 
   #open(peer: Peer) {
@@ -151,6 +160,7 @@ export class LiveConnection {
   }
 
   destroy() {
+    this.#attempt++;
     this.#conn?.close();
     this.#conn = null;
     this.#peer?.destroy();

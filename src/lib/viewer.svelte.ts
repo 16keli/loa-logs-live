@@ -1,7 +1,7 @@
-import { arcanistCardIds, classColor, hyperAwakeningIds, skillIcon } from "./constants";
+import { arcanistCardIds, classColor, hyperAwakeningIds, isSupportSpec, skillIcon } from "./constants";
 import { isNameValid, percent } from "./format";
 import type { BossStatus, MeterStatus } from "./protocol";
-import { type Encounter, type Entity, EntityType, type Skill } from "./types";
+import { type Encounter, type Entity, EntityType, type IncapacitatedEvent, type Skill } from "./types";
 
 /**
  * The viewer's derived view of the stream.
@@ -10,6 +10,9 @@ import { type Encounter, type Entity, EntityType, type Skill } from "./types";
  * meter derives locally has to be re-derived here. Row values are plain getters rather than
  * `$derived` fields because the rows are rebuilt inside a derived on every frame; reading `$state`
  * through a getter during render tracks it just the same, without creating throwaway signals.
+ *
+ * Formulas follow the desktop app's `src/lib/entity.svelte.ts`, `src/lib/skill.svelte.ts` and the
+ * column definitions in `DamageMeterColumns.svelte` / `PlayerBreakdownColumns.svelte`.
  */
 export class ViewerState {
   // `$state.raw` throughout: every frame replaces these wholesale and nothing mutates them in
@@ -19,22 +22,52 @@ export class ViewerState {
   partyInfo = $state.raw<string[][] | null>(null);
   meterStatus = $state.raw<MeterStatus>({ raidInProgress: false });
 
-  /** Local wall clock, advanced once a second so the duration ticks between frames. */
+  /** Local wall clock, advanced once a second by `tick` so the duration moves between frames. */
   now = $state(Date.now());
+
+  /** The last tick at which the fight clock was running, so it can freeze there. */
+  #lastRunningAt = $state.raw<{ fightStart: number; at: number } | null>(null);
 
   fightStart = $derived(this.encounter?.fightStart ?? 0);
 
+  boss = $derived(this.encounter?.currentBoss ?? null);
+
   /**
-   * A live fight measures against the wall clock; a finished one freezes at the last combat packet,
-   * otherwise the timer would keep running after the boss dies.
+   * The encounter's boss has been killed. The host marks `currentBoss.isDead` in the frame; the
+   * faster bossStatus stream counts too, but only while it describes that same boss.
+   */
+  bossDead = $derived.by(() => {
+    if (this.encounter?.currentBoss?.isDead) return true;
+    const status = this.bossStatus;
+    return !!status?.isDead && status.name === this.encounter?.currentBossName;
+  });
+
+  /** The fight clock runs only while a raid is in progress and its boss is alive, as in the meter. */
+  clockRunning = $derived(this.meterStatus.raidInProgress && !this.bossDead);
+
+  /**
+   * Time since the pull. While the clock runs it follows the wall clock; once it stops (boss
+   * killed, wipe, zone change) it freezes at the last running tick, like the meter's timer does. A
+   * viewer who joined after the clock stopped never saw it run, and gets the last combat packet.
    */
   duration = $derived.by(() => {
     if (!this.encounter || !this.fightStart) return 0;
-    const end = this.meterStatus.raidInProgress ? this.now : this.encounter.lastCombatPacket;
+
+    let end: number;
+    if (this.clockRunning) end = this.now;
+    else if (this.#lastRunningAt?.fightStart === this.fightStart) end = this.#lastRunningAt.at;
+    else end = this.encounter.lastCombatPacket;
+
     return Math.max(0, end - this.fightStart);
   });
 
   durationSeconds = $derived(this.duration / 1000);
+
+  /** Advance the local clock; called once a second. */
+  tick(now = Date.now()) {
+    if (this.clockRunning && this.fightStart) this.#lastRunningAt = { fightStart: this.fightStart, at: now };
+    this.now = now;
+  }
 
   totalDamageDealt = $derived(this.encounter?.encounterDamageStats.totalDamageDealt ?? 0);
 
@@ -50,7 +83,7 @@ export class ViewerState {
     if (!this.encounter) return [] as Entity[];
 
     return Object.values(this.encounter.entities)
-      .filter((e) => e.entityType === EntityType.PLAYER && e.damageStats.damageDealt > 0)
+      .filter((e) => e.entityType === EntityType.PLAYER && e.classId !== 0 && e.damageStats.damageDealt > 0)
       .sort((a, b) => b.damageStats.damageDealt - a.damageStats.damageDealt);
   });
 
@@ -58,23 +91,44 @@ export class ViewerState {
 
   players = $derived(this.playerEntities.map((entity) => new PlayerRow(entity, this)));
 
-  /** Which optional columns have any data at all, so empty ones can stay hidden. */
+  /** Players whose skills contributed buff damage to others: the meter's definition of a support. */
+  supportNames = $derived.by(() => {
+    const names = new Set<string>();
+    for (const player of this.playerEntities) {
+      if (Object.values(player.skills).some((skill) => sumContributed(skill, BUFF_TYPES) > 0)) names.add(player.name);
+    }
+    return names;
+  });
+
+  /** Raid contribution (rDPS) data is present and the host hasn't flagged it as unreliable. */
+  anyRdpsContributions = $derived(
+    this.encounter?.encounterDamageStats.misc?.rdpsValid !== false &&
+      this.playerEntities.some((e) => e.damageStats.rdpsDamageGiven > 0 || e.damageStats.rdpsDamageReceived > 0)
+  );
+
+  /** Which optional list columns have any data, mirroring each column's `show()` in the meter. */
   aggregates = $derived.by(() => {
     const entities = this.playerEntities;
+    const anyUnbuffed = entities.some((e) => hasUnbuffedDamage(e)) || this.supportNames.size > 0;
     return {
+      deadFor: entities.some((e) => e.isDead),
+      deaths: entities.some((e) => e.damageStats.deaths > 0 && !e.isDead),
+      incapacitated: entities.some((e) => (e.damageStats.incapacitations?.length ?? 0) > 0),
+      notSolo: entities.length !== 1,
+      unbuffed: anyUnbuffed,
+      rdps: this.anyRdpsContributions,
+      supportContrib: this.supportNames.size > 0,
       crit: entities.some((e) => e.skillStats.hits > 0),
-      frontAttack: entities.some((e) => e.damageStats.frontAttackDamage > 0),
-      backAttack: entities.some((e) => e.damageStats.backAttackDamage > 0),
+      frontAttack: entities.some((e) => e.skillStats.frontAttacks > 0),
+      backAttack: entities.some((e) => e.skillStats.backAttacks > 0),
       supportBuff: entities.some((e) => e.damageStats.buffedBySupport > 0),
       brand: entities.some((e) => e.damageStats.debuffedBySupport > 0),
       identity: entities.some((e) => e.damageStats.buffedByIdentity > 0),
       hat: entities.some((e) => (e.damageStats.buffedByHat ?? 0) > 0),
-      deaths: entities.some((e) => e.damageStats.deaths > 0),
+      stagger: entities.some((e) => e.damageStats.stagger > 0),
       counters: entities.some((e) => e.skillStats.counters > 0)
     };
   });
-
-  boss = $derived(this.encounter?.currentBoss ?? null);
 
   /** Party index by player name, for the party-split view. */
   partyByName = $derived.by(() => {
@@ -100,6 +154,19 @@ export class ViewerState {
 
     return [...groups.entries()].sort(([a], [b]) => a - b).map(([, group]) => group);
   });
+
+  /**
+   * The non-support players a support's contribution is measured against: their own party when
+   * party info is known, otherwise everyone. `getContributionScopeDpsPlayers` in the meter.
+   */
+  contributionScopeDps(name: string): Entity[] {
+    const partyIndex = this.partyByName.get(name);
+    const scope =
+      partyIndex === undefined
+        ? this.playerEntities
+        : this.playerEntities.filter((e) => this.partyByName.get(e.name) === partyIndex);
+    return scope.filter((e) => !this.supportNames.has(e.name));
+  }
 
   /** The player whose breakdown is open, pinned to the fight it was opened in. */
   #selection = $state.raw<{ name: string; fightStart: number } | null>(null);
@@ -130,6 +197,7 @@ export class ViewerState {
     this.partyInfo = null;
     this.meterStatus = { raidInProgress: false };
     this.#selection = null;
+    this.#lastRunningAt = null;
   }
 }
 
@@ -166,8 +234,7 @@ export class PlayerRow {
 
   /** Recomputed locally so it keeps climbing between the host's 1 Hz frames. */
   get dps(): number {
-    const seconds = this.#viewer.durationSeconds;
-    return seconds > 0 ? this.damage / seconds : 0;
+    return perSecond(this.damage, this.#viewer.durationSeconds);
   }
 
   get damagePercent(): number {
@@ -180,37 +247,64 @@ export class PlayerRow {
     return top > 0 ? (this.damage / top) * 100 : 0;
   }
 
+  #withoutSpecial: { damage: number; hits: number } | undefined;
+
+  /**
+   * Damage without special skills, and hits without special or hyper awakening skills: the
+   * denominators the meter uses for crit, positional and support percentages. Cached because many
+   * columns read them, and a row's entity never changes: rows are rebuilt for every frame.
+   */
+  get #special(): { damage: number; hits: number } {
+    if (this.#withoutSpecial === undefined) {
+      let damage = this.damage;
+      let hits = this.entity.skillStats.hits;
+      for (const skill of Object.values(this.entity.skills)) {
+        if (skill.special) damage -= skill.totalDamage;
+        if (isSpecialSkill(skill)) hits -= skill.hits;
+      }
+      this.#withoutSpecial = { damage, hits };
+    }
+    return this.#withoutSpecial;
+  }
+
+  get damageWithoutSpecial(): number {
+    return this.#special.damage;
+  }
+
+  get #damageWithoutSpecialOrHa(): number {
+    return this.damageWithoutSpecial - (this.entity.damageStats.hyperAwakeningDamage ?? 0);
+  }
+
+  get #hitsWithoutSpecial(): number {
+    return this.#special.hits;
+  }
+
   get critPercent(): number {
-    return percent(this.entity.skillStats.crits, this.entity.skillStats.hits);
+    return percent(this.entity.skillStats.crits, this.#hitsWithoutSpecial);
+  }
+
+  get critDamagePercent(): number {
+    if (this.#hitsWithoutSpecial <= 0) return 0;
+    return percent(this.entity.damageStats.critDamage, this.#damageWithoutSpecialOrHa);
+  }
+
+  get frontAttackHitPercent(): number {
+    return percent(this.entity.skillStats.frontAttacks, this.#hitsWithoutSpecial);
+  }
+
+  get backAttackHitPercent(): number {
+    return percent(this.entity.skillStats.backAttacks, this.#hitsWithoutSpecial);
   }
 
   get frontAttackPercent(): number {
-    return percent(this.entity.damageStats.frontAttackDamage, this.damage);
+    return percent(this.entity.damageStats.frontAttackDamage, this.#damageWithoutSpecialOrHa);
   }
 
   get backAttackPercent(): number {
-    return percent(this.entity.damageStats.backAttackDamage, this.damage);
+    return percent(this.entity.damageStats.backAttackDamage, this.#damageWithoutSpecialOrHa);
   }
 
-  #damageWithoutSpecial: number | undefined;
-
-  /**
-   * Damage excluding special skills, which no buff can modify. Cached because the four support
-   * columns all read it, and a row's entity never changes: rows are rebuilt for every frame.
-   */
-  get damageWithoutSpecial(): number {
-    if (this.#damageWithoutSpecial === undefined) {
-      let special = 0;
-      for (const skill of Object.values(this.entity.skills)) {
-        if (skill.special) special += skill.totalDamage;
-      }
-      this.#damageWithoutSpecial = this.damage - special;
-    }
-    return this.#damageWithoutSpecial;
-  }
-
-  // Support uptimes use the desktop meter's denominators (DamageMeterColumns.svelte): hyper awakening
-  // damage is left out of every one except T%.
+  // Support uptimes leave hyper awakening damage out of every denominator except T%.
 
   get supportBuffPercent(): number {
     return percent(this.entity.damageStats.buffedBySupport, this.#damageWithoutSpecialOrHa);
@@ -228,20 +322,139 @@ export class PlayerRow {
     return percent(this.entity.damageStats.buffedByHat ?? 0, this.damageWithoutSpecial);
   }
 
-  get #damageWithoutSpecialOrHa(): number {
-    return this.damageWithoutSpecial - (this.entity.damageStats.hyperAwakeningDamage ?? 0);
-  }
-
   get deaths(): number {
     return this.entity.damageStats.deaths;
   }
 
-  get counters(): number {
-    return this.entity.skillStats.counters;
+  /** Seconds since death, measured to the last combat packet; null while alive. */
+  get deadForSeconds(): number | null {
+    if (!this.entity.isDead) return null;
+    const end = this.#viewer.encounter?.lastCombatPacket ?? 0;
+    return Math.abs((end - this.entity.damageStats.deathTime) / 1000);
   }
 
-  get critDamagePercent(): number {
-    return percent(this.entity.damageStats.critDamage, this.damage);
+  #incapacitated: { total: number; knockDown: number; cc: number } | undefined;
+
+  /** Milliseconds spent knocked down or crowd controlled, overlaps merged. */
+  get incapacitatedMs(): { total: number; knockDown: number; cc: number } {
+    if (this.#incapacitated === undefined) {
+      const events = this.entity.damageStats.incapacitations ?? [];
+      const end = this.#viewer.encounter?.lastCombatPacket ?? 0;
+      this.#incapacitated = {
+        total: incapacitatedTime(events, end),
+        knockDown: incapacitatedTime(
+          events.filter((e) => e.type === "FALL_DOWN"),
+          end
+        ),
+        cc: incapacitatedTime(
+          events.filter((e) => e.type === "CROWD_CONTROL"),
+          end
+        )
+      };
+    }
+    return this.#incapacitated;
+  }
+
+  /** Neutral damage: own damage with incoming synergies and buffs removed. */
+  get baseDamage(): number {
+    return this.damage - this.entity.damageStats.rdpsDamageReceived;
+  }
+
+  /** Raid damage: neutral damage plus what this player's synergies and buffs gave others. */
+  get raidDamage(): number {
+    return this.baseDamage + this.entity.damageStats.rdpsDamageGiven;
+  }
+
+  get ndps(): number {
+    return perSecond(this.baseDamage, this.#viewer.durationSeconds);
+  }
+
+  get rdps(): number {
+    return perSecond(this.raidDamage, this.#viewer.durationSeconds);
+  }
+
+  get isSupport(): boolean {
+    return this.#viewer.supportNames.has(this.entity.name);
+  }
+
+  get isSupportSpec(): boolean {
+    return isSupportSpec(this.entity.spec);
+  }
+
+  get anyUnbuffedDamage(): boolean {
+    return hasUnbuffedDamage(this.entity);
+  }
+
+  get unbuffedDamage(): number {
+    return this.entity.damageStats.unbuffedDamage;
+  }
+
+  get unbuffedDps(): number {
+    if (this.unbuffedDamage === 0) return this.dps;
+    return perSecond(this.unbuffedDamage, this.#viewer.durationSeconds);
+  }
+
+  /** Damage a support's buffs added to others, summed over their skills. */
+  get totalDamageBuffed(): number {
+    if (!this.isSupport) return 0;
+    return Object.values(this.entity.skills).reduce((sum, skill) => sum + sumContributed(skill, BUFF_TYPES), 0);
+  }
+
+  get totalDpsBuffed(): number {
+    return perSecond(this.totalDamageBuffed, this.#viewer.durationSeconds);
+  }
+
+  /** A support's buffed damage as a share of the whole encounter's damage. */
+  get totalDamageBuffedPercent(): number {
+    return percent(this.totalDamageBuffed, this.#viewer.totalDamageDealt);
+  }
+
+  /** Whether raid contribution data is usable for this encounter. */
+  get encounterHasRdps(): boolean {
+    return this.#viewer.anyRdpsContributions;
+  }
+
+  get totalDamageReduced(): number {
+    return Object.values(this.entity.skills).reduce((sum, skill) => sum + sumContributed(skill, DR_TYPES), 0);
+  }
+
+  /** Share of buffed damage in this player's own damage. */
+  get buffedShareOfOwnDamage(): number {
+    return percent(this.damage - this.unbuffedDamage, this.damage);
+  }
+
+  /**
+   * A support's buff contribution to their party: weighted over DPS players with unbuffed data,
+   * i.e. sum(buffed) / sum(damage).
+   */
+  get supportContribPercent(): number {
+    const scope = this.#viewer.contributionScopeDps(this.entity.name).filter((e) => hasUnbuffedDamage(e));
+    const total = scope.reduce((sum, e) => sum + e.damageStats.damageDealt, 0);
+    const unbuffed = scope.reduce((sum, e) => sum + e.damageStats.unbuffedDamage, 0);
+    return percent(total - unbuffed, total);
+  }
+
+  /** Raid contribution: given, for supports, against their party's DPS damage; received otherwise. */
+  get rdpsContribDamage(): number {
+    return this.isSupport ? this.entity.damageStats.rdpsDamageGiven : this.entity.damageStats.rdpsDamageReceived;
+  }
+
+  get rdpsContribPercent(): number {
+    if (this.isSupport) {
+      const partyDamage = this.#viewer
+        .contributionScopeDps(this.entity.name)
+        .reduce((sum, e) => sum + e.damageStats.damageDealt, 0);
+      return percent(this.entity.damageStats.rdpsDamageGiven, partyDamage);
+    }
+    return percent(this.entity.damageStats.rdpsDamageReceived, this.damage);
+  }
+
+  get stagger(): number {
+    return this.entity.damageStats.stagger;
+  }
+
+  get counters(): number {
+    return this.entity.skillStats.counters;
   }
 
   get casts(): number {
@@ -267,9 +480,8 @@ export class PlayerRow {
   #skills: SkillRow[] | undefined;
 
   /**
-   * Skills for the breakdown, damage descending, with Arcanist cards hidden as the meter does
-   * (`skills` in the desktop app's `src/lib/entity.svelte.ts`). Cached for the same reason as
-   * `damageWithoutSpecial`.
+   * Skills for the breakdown, damage descending, with Arcanist cards hidden as the meter does.
+   * Cached for the same reason as the special-skill totals.
    */
   get skills(): SkillRow[] {
     if (this.#skills === undefined) {
@@ -285,8 +497,8 @@ export class PlayerRow {
 }
 
 /**
- * One skill in a player's breakdown. Formulas follow the desktop app's `PlayerBreakdownColumns.svelte`,
- * where every per-skill percentage is taken against that skill's own damage or hits.
+ * One skill in a player's breakdown. As in the meter's `PlayerBreakdownColumns.svelte`, every
+ * per-skill percentage is taken against that skill's own damage or hits.
  */
 export class SkillRow {
   readonly skill: Skill;
@@ -315,7 +527,7 @@ export class SkillRow {
 
   /** Unaffected by crits, positionals and buffs, so the meter shows "-" for those columns. */
   get isSpecial(): boolean {
-    return !!this.skill.special || !!this.skill.isHyperAwakening || hyperAwakeningIds.has(this.skill.id);
+    return isSpecialSkill(this.skill);
   }
 
   get damage(): number {
@@ -323,8 +535,7 @@ export class SkillRow {
   }
 
   get dps(): number {
-    const seconds = this.#viewer.durationSeconds;
-    return seconds > 0 ? this.damage / seconds : 0;
+    return perSecond(this.damage, this.#viewer.durationSeconds);
   }
 
   get damagePercent(): number {
@@ -344,7 +555,13 @@ export class SkillRow {
     return percent(this.skill.critDamage, this.damage);
   }
 
-  // Damage share, matching the viewer's player list rather than the desktop breakdown's hit share.
+  get frontAttackHitPercent(): number {
+    return percent(this.skill.frontAttacks, this.skill.hits);
+  }
+
+  get backAttackHitPercent(): number {
+    return percent(this.skill.backAttacks, this.skill.hits);
+  }
 
   get frontAttackPercent(): number {
     return percent(this.skill.frontAttackDamage, this.damage);
@@ -368,6 +585,61 @@ export class SkillRow {
 
   get hatPercent(): number {
     return percent(this.skill.buffedByHat ?? 0, this.damage);
+  }
+
+  /** Whether the skill received any buffs, which is what makes unbuffed damage meaningful. */
+  get hasReceivedBuffs(): boolean {
+    return Object.keys(this.skill.rdpsReceived ?? {}).length > 0;
+  }
+
+  get unbuffedDamage(): number {
+    return this.damage - sumReceived(this.skill, BUFF_TYPES);
+  }
+
+  get unbuffedDps(): number {
+    const unbuffed = this.unbuffedDamage;
+    if (unbuffed === 0 || unbuffed === this.damage) return this.dps;
+    return perSecond(unbuffed, this.#viewer.durationSeconds);
+  }
+
+  /** Neutral damage (incoming buffs removed), or null when the skill received none. */
+  get neutralDamage(): number | null {
+    const received = this.skill.rdpsDamageReceived ?? 0;
+    return received > 0 ? this.damage - received : null;
+  }
+
+  get neutralDps(): number | null {
+    const neutral = this.neutralDamage;
+    return neutral === null ? null : perSecond(neutral, this.#viewer.durationSeconds);
+  }
+
+  /** Damage this (support) skill's buffs added to others. */
+  get buffedDamage(): number {
+    return sumContributed(this.skill, BUFF_TYPES);
+  }
+
+  get buffedDps(): number {
+    return perSecond(this.buffedDamage, this.#viewer.durationSeconds);
+  }
+
+  get buffedDamagePercent(): number {
+    return percent(this.buffedDamage, this.#player.totalDamageBuffed);
+  }
+
+  get damageReduced(): number {
+    return sumContributed(this.skill, DR_TYPES);
+  }
+
+  /** Share of the fight the skill spent on cooldown, or null without cooldown data. */
+  get cooldownRatio(): number | null {
+    const available = this.skill.timeAvailable;
+    const duration = this.#viewer.duration;
+    if (!available || available > duration) return null;
+    return (1 - available / duration) * 100;
+  }
+
+  get stagger(): number {
+    return this.skill.stagger ?? 0;
   }
 
   get avgPerHit(): number {
@@ -397,6 +669,67 @@ export class SkillRow {
   get hitsPerMinute(): number {
     return perMinute(this.skill.hits, this.#viewer.durationSeconds);
   }
+}
+
+/** Contribution types: 1 support AP buff and identity, 3 brand, 5 hyper awakening (T) skill. */
+const BUFF_TYPES = [1, 3, 5];
+/** Contribution types: 4 damage reduction on a character, 6 boss attack-power debuff. */
+const DR_TYPES = [4, 6];
+
+/** `sumUdpsContributed` in the meter. */
+function sumContributed(skill: Skill, types: number[]): number {
+  const contributed = skill.rdpsContributed;
+  if (!contributed) return 0;
+  return types.reduce((sum, type) => sum + (contributed[type] ?? 0), 0);
+}
+
+/** `sumBdpsReceived` in the meter. */
+function sumReceived(skill: Skill, types: number[]): number {
+  const received = skill.rdpsReceived;
+  if (!received) return 0;
+  let sum = 0;
+  for (const type of types) {
+    for (const amount of Object.values(received[type] ?? {})) sum += amount;
+  }
+  return sum;
+}
+
+function isSpecialSkill(skill: Skill): boolean {
+  return !!skill.special || !!skill.isHyperAwakening || hyperAwakeningIds.has(skill.id);
+}
+
+function hasUnbuffedDamage(entity: Entity): boolean {
+  const { unbuffedDamage, damageDealt } = entity.damageStats;
+  return unbuffedDamage > 0 && unbuffedDamage !== damageDealt;
+}
+
+/**
+ * Total time covered by incapacitation events, merging overlaps and ignoring anything after the
+ * last combat packet. Events arrive sorted by start. `computeIncapacitatedTime` in the meter.
+ */
+function incapacitatedTime(events: IncapacitatedEvent[], end: number): number {
+  if (events.length === 0) return 0;
+
+  let total = 0;
+  const add = (start: number, stop: number) => (total += Math.max(0, Math.min(stop, end) - Math.min(start, end)));
+
+  let start = events[0]!.timestamp;
+  let stop = start + events[0]!.duration;
+  for (const event of events.slice(1)) {
+    if (event.timestamp > stop) {
+      add(start, stop);
+      start = event.timestamp;
+      stop = event.timestamp + event.duration;
+    } else {
+      stop = Math.max(stop, event.timestamp + event.duration);
+    }
+  }
+  add(start, stop);
+  return total;
+}
+
+function perSecond(amount: number, seconds: number): number {
+  return seconds > 0 ? amount / seconds : 0;
 }
 
 function perMinute(count: number, seconds: number): number {

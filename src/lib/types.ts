@@ -55,6 +55,12 @@ export interface EncounterDamageStats {
   buffs: Record<number, StatusEffect> | null;
   debuffs: Record<number, StatusEffect> | null;
   appliedShieldBuffs: Record<number, StatusEffect> | null;
+  misc?: EncounterMisc;
+}
+
+export interface EncounterMisc {
+  /** False when the host couldn't attribute raid contributions reliably; rDPS columns stay hidden. */
+  rdpsValid?: boolean;
 }
 
 export interface Entity {
@@ -105,9 +111,16 @@ export interface DamageStats {
   rdpsDamageReceived: number;
   rdpsDamageReceivedSupport: number;
   rdpsDamageGiven: number;
+  incapacitations?: IncapacitatedEvent[];
   stagger: number;
   unbuffedDamage: number;
   unbuffedDps: number;
+}
+
+export interface IncapacitatedEvent {
+  type: "FALL_DOWN" | "CROWD_CONTROL";
+  timestamp: number;
+  duration: number;
 }
 
 export interface SkillStats {
@@ -138,9 +151,17 @@ export interface Skill {
   buffedByIdentity: number;
   buffedByHat?: number;
   dps: number;
+  stagger?: number;
   /** Set on skills that buffs and crits cannot modify; absent otherwise. */
   special?: boolean;
   isHyperAwakening?: boolean;
+  /** Milliseconds the skill was off cooldown, when the host tracks it. */
+  timeAvailable?: number;
+  /** Buff damage received, by contribution type, then by source. */
+  rdpsReceived?: Record<number, Record<number, number>>;
+  /** Buff damage this skill gave others, by contribution type. */
+  rdpsContributed?: Record<number, number>;
+  rdpsDamageReceived?: number;
 }
 
 export interface StatusEffect {

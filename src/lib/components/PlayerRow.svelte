@@ -6,7 +6,17 @@
   import { cubicOut } from "svelte/easing";
   import { Tween } from "svelte/motion";
 
-  let { row, visibleColumns }: { row: PlayerRow; visibleColumns: ColumnKey[] } = $props();
+  let {
+    row,
+    visibleColumns,
+    onselect
+  }: { row: PlayerRow; visibleColumns: ColumnKey[]; onselect: (row: PlayerRow) => void } = $props();
+
+  function onkeydown(event: KeyboardEvent) {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    onselect(row);
+  }
 
   const width = new Tween(0, { duration: 400, easing: cubicOut });
 
@@ -45,7 +55,14 @@
   }
 </script>
 
-<tr class="relative isolate h-7 text-sm">
+<tr
+  class="relative isolate h-7 cursor-pointer text-sm outline-accent-500 hover:bg-white/5 focus-visible:outline"
+  role="button"
+  tabindex="0"
+  aria-label="Show {row.name}'s skill breakdown"
+  onclick={() => onselect(row)}
+  {onkeydown}
+>
   <td class="max-w-0 pr-2 pl-1.5">
     <div class="flex items-center gap-1.5">
       <img

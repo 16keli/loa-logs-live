@@ -4,6 +4,7 @@
   import EncounterHeader from "$lib/components/EncounterHeader.svelte";
   import MeterTable from "$lib/components/MeterTable.svelte";
   import SettingsPanel from "$lib/components/SettingsPanel.svelte";
+  import SkillBreakdown from "$lib/components/SkillBreakdown.svelte";
   import { getBossHpBars } from "$lib/constants";
   import { LiveConnection } from "$lib/peer.svelte";
   import { ViewerState } from "$lib/viewer.svelte";
@@ -35,6 +36,22 @@
   function reconnect() {
     viewer.clear();
     connection.connect();
+  }
+
+  let scroller = $state<HTMLDivElement>();
+  let inBreakdown = $derived(viewer.selectedRow !== null);
+
+  // Start each view from the top, as the meter does when switching between the list and a breakdown.
+  $effect(() => {
+    void inBreakdown;
+    if (scroller) scroller.scrollTop = 0;
+  });
+
+  /** Right-click backs out of a breakdown, as in the meter; in the list it keeps the browser's menu. */
+  function oncontextmenu(event: MouseEvent) {
+    if (!inBreakdown) return;
+    event.preventDefault();
+    viewer.closeBreakdown();
   }
 
   let status = $derived(connection.status);
@@ -71,8 +88,18 @@
 
     <EncounterHeader {viewer} />
 
-    <div class="min-h-0 flex-1 overflow-x-auto overflow-y-auto">
-      <MeterTable {viewer} />
+    <div
+      class="min-h-0 flex-1 overflow-x-auto overflow-y-auto"
+      role="region"
+      aria-label={inBreakdown ? "Skill breakdown" : "Damage meter"}
+      bind:this={scroller}
+      {oncontextmenu}
+    >
+      {#if viewer.selectedRow}
+        <SkillBreakdown row={viewer.selectedRow} onback={() => viewer.closeBreakdown()} />
+      {:else}
+        <MeterTable {viewer} />
+      {/if}
     </div>
 
     <footer class="flex h-8 shrink-0 items-center gap-3 border-t border-neutral-800 px-3 text-xs text-neutral-500">

@@ -54,6 +54,83 @@ export function classIcon(classId: number): string {
   return `${base}/images/classes/${classId}.png`;
 }
 
+/** Shown for skills with no icon, or one the CDN doesn't have. Bundled, since the CDN has no placeholder. */
+export const SKILL_ICON_PLACEHOLDER = `${base}/images/unknown-skill.png`;
+
+/**
+ * Skill icons come from the CDN rather than a bundled copy of the meter's 3,000+ images; it serves
+ * the same file names the host sends. The host sends "" when a skill has no icon.
+ */
+export function skillIcon(icon: string): string {
+  return icon ? `https://cdn.ags.lol/icon/${icon}` : SKILL_ICON_PLACEHOLDER;
+}
+
+/** Hyper awakening skills, two per class. From `hyperAwakeningIds` in `src/lib/utils/buffs.ts`. */
+export const hyperAwakeningIds: ReadonlySet<number> = new Set([
+  16720,
+  16730, // berserker
+  18240,
+  18250, // destroyer
+  17250,
+  17260, // gunlancer
+  36230,
+  36240, // paladin
+  45820,
+  45830, // slayer
+  19360,
+  19370, // arcanist
+  20370,
+  20350, // summoner
+  21320,
+  21330, // bard
+  37380,
+  37390, // sorceress
+  22360,
+  22370, // wardancer
+  23400,
+  23410, // scrapper
+  24300,
+  24310, // soulfist
+  34620,
+  34630, // glaivier
+  39340,
+  39350, // striker
+  47300,
+  47310, // breaker
+  25410,
+  25420, // deathblade
+  28260,
+  28270, // sharpshooter
+  27910,
+  27920, // shadowhunter
+  26940,
+  26950, // reaper
+  46620,
+  46630, // souleater
+  29360,
+  29370, // deadeye
+  30320,
+  30330, // artillerist
+  35810,
+  35890, // machinist
+  38320,
+  38330, // gunslinger
+  31920,
+  31930, // artist
+  32290,
+  32300, // aeromancer
+  33520,
+  33530 // wildsoul
+]);
+
+/**
+ * Arcanist card skills, hidden from the breakdown as the meter does. From `cardIds` in
+ * `src/lib/constants/cards.ts`, which deliberately leaves out Emperor and Knight of the Empress.
+ */
+export const arcanistCardIds: ReadonlySet<number> = new Set([
+  19090, 19091, 19092, 19093, 19094, 19095, 19096, 19097, 19098, 19099, 19280, 19281, 19284, 19285, 19286, 19287
+]);
+
 /** Bosses whose HP bar count is fixed rather than derived. From `src/lib/constants/encounters.ts`. */
 export const bossHpMap: Record<string, number> = {
   "Dark Mountain Predator": 50,

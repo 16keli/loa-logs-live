@@ -1,7 +1,7 @@
-import { classColor } from "./constants";
+import { arcanistCardIds, classColor, hyperAwakeningIds, skillIcon } from "./constants";
 import { isNameValid, percent } from "./format";
 import type { BossStatus, MeterStatus } from "./protocol";
-import { type Encounter, type Entity, EntityType } from "./types";
+import { type Encounter, type Entity, EntityType, type Skill } from "./types";
 
 /**
  * The viewer's derived view of the stream.
@@ -101,11 +101,35 @@ export class ViewerState {
     return [...groups.entries()].sort(([a], [b]) => a - b).map(([, group]) => group);
   });
 
+  /** The player whose breakdown is open, pinned to the fight it was opened in. */
+  #selection = $state.raw<{ name: string; fightStart: number } | null>(null);
+
+  /**
+   * The open breakdown's player, looked up again in every frame so it stays live.
+   *
+   * Null once that fight is cleared or a new one starts, which drops the viewer back to the list as
+   * the meter does on a new pull, without an effect having to reset anything.
+   */
+  selectedRow = $derived.by(() => {
+    const selection = this.#selection;
+    if (!selection || !this.encounter || this.fightStart !== selection.fightStart) return null;
+    return this.players.find((row) => row.entity.name === selection.name) ?? null;
+  });
+
+  selectPlayer(name: string) {
+    this.#selection = { name, fightStart: this.fightStart };
+  }
+
+  closeBreakdown() {
+    this.#selection = null;
+  }
+
   clear() {
     this.encounter = null;
     this.bossStatus = null;
     this.partyInfo = null;
     this.meterStatus = { raidInProgress: false };
+    this.#selection = null;
   }
 }
 
@@ -216,7 +240,165 @@ export class PlayerRow {
     return this.entity.skillStats.counters;
   }
 
+  get critDamagePercent(): number {
+    return percent(this.entity.damageStats.critDamage, this.damage);
+  }
+
+  get casts(): number {
+    return this.entity.skillStats.casts;
+  }
+
+  get hits(): number {
+    return this.entity.skillStats.hits;
+  }
+
+  get castsPerMinute(): number {
+    return perMinute(this.casts, this.#viewer.durationSeconds);
+  }
+
+  get hitsPerMinute(): number {
+    return perMinute(this.hits, this.#viewer.durationSeconds);
+  }
+
   get party(): number | undefined {
     return this.#viewer.partyByName.get(this.entity.name);
   }
+
+  #skills: SkillRow[] | undefined;
+
+  /**
+   * Skills for the breakdown, damage descending, with Arcanist cards hidden as the meter does
+   * (`skills` in the desktop app's `src/lib/entity.svelte.ts`). Cached for the same reason as
+   * `damageWithoutSpecial`.
+   */
+  get skills(): SkillRow[] {
+    if (this.#skills === undefined) {
+      let skills = Object.values(this.entity.skills);
+      if (this.entity.class === "Arcanist") skills = skills.filter((skill) => !arcanistCardIds.has(skill.id));
+      skills.sort((a, b) => b.totalDamage - a.totalDamage);
+
+      const top = skills[0]?.totalDamage ?? 0;
+      this.#skills = skills.map((skill) => new SkillRow(skill, this, this.#viewer, top));
+    }
+    return this.#skills;
+  }
+}
+
+/**
+ * One skill in a player's breakdown. Formulas follow the desktop app's `PlayerBreakdownColumns.svelte`,
+ * where every per-skill percentage is taken against that skill's own damage or hits.
+ */
+export class SkillRow {
+  readonly skill: Skill;
+  readonly #player: PlayerRow;
+  readonly #viewer: ViewerState;
+  readonly #topDamage: number;
+
+  constructor(skill: Skill, player: PlayerRow, viewer: ViewerState, topDamage: number) {
+    this.skill = skill;
+    this.#player = player;
+    this.#viewer = viewer;
+    this.#topDamage = topDamage;
+  }
+
+  get key(): number {
+    return this.skill.id;
+  }
+
+  get name(): string {
+    return this.skill.name || String(this.skill.id);
+  }
+
+  get icon(): string {
+    return skillIcon(this.skill.icon);
+  }
+
+  /** Unaffected by crits, positionals and buffs, so the meter shows "-" for those columns. */
+  get isSpecial(): boolean {
+    return !!this.skill.special || !!this.skill.isHyperAwakening || hyperAwakeningIds.has(this.skill.id);
+  }
+
+  get damage(): number {
+    return this.skill.totalDamage;
+  }
+
+  get dps(): number {
+    const seconds = this.#viewer.durationSeconds;
+    return seconds > 0 ? this.damage / seconds : 0;
+  }
+
+  get damagePercent(): number {
+    return percent(this.damage, this.#player.damage);
+  }
+
+  /** Bars are scaled against the top skill, as the meter does. */
+  get barWidth(): number {
+    return this.#topDamage > 0 ? (this.damage / this.#topDamage) * 100 : 0;
+  }
+
+  get critPercent(): number {
+    return percent(this.skill.crits, this.skill.hits);
+  }
+
+  get critDamagePercent(): number {
+    return percent(this.skill.critDamage, this.damage);
+  }
+
+  // Damage share, matching the viewer's player list rather than the desktop breakdown's hit share.
+
+  get frontAttackPercent(): number {
+    return percent(this.skill.frontAttackDamage, this.damage);
+  }
+
+  get backAttackPercent(): number {
+    return percent(this.skill.backAttackDamage, this.damage);
+  }
+
+  get supportBuffPercent(): number {
+    return percent(this.skill.buffedBySupport, this.damage);
+  }
+
+  get brandPercent(): number {
+    return percent(this.skill.debuffedBySupport, this.damage);
+  }
+
+  get identityPercent(): number {
+    return percent(this.skill.buffedByIdentity, this.damage);
+  }
+
+  get hatPercent(): number {
+    return percent(this.skill.buffedByHat ?? 0, this.damage);
+  }
+
+  get avgPerHit(): number {
+    return this.skill.hits > 0 ? this.damage / this.skill.hits : 0;
+  }
+
+  get avgPerCast(): number {
+    return this.skill.casts > 0 ? this.damage / this.skill.casts : 0;
+  }
+
+  get maxHit(): number {
+    return this.skill.maxDamage;
+  }
+
+  get casts(): number {
+    return this.skill.casts;
+  }
+
+  get hits(): number {
+    return this.skill.hits;
+  }
+
+  get castsPerMinute(): number {
+    return perMinute(this.skill.casts, this.#viewer.durationSeconds);
+  }
+
+  get hitsPerMinute(): number {
+    return perMinute(this.skill.hits, this.#viewer.durationSeconds);
+  }
+}
+
+function perMinute(count: number, seconds: number): number {
+  return seconds > 0 ? count / (seconds / 60) : 0;
 }

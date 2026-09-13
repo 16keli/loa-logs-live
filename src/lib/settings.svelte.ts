@@ -38,6 +38,70 @@ export const columnTooltips: Partial<Record<ColumnKey, string>> = {
   hat: "% Damage buffed by Support Hyper Awakening Skill (T Skill)"
 };
 
+export type BreakdownColumnKey =
+  | "damage"
+  | "dps"
+  | "damagePercent"
+  | "crit"
+  | "critDamage"
+  | "frontAttack"
+  | "backAttack"
+  | "supportBuff"
+  | "brand"
+  | "identity"
+  | "hat"
+  | "avgPerHit"
+  | "avgPerCast"
+  | "maxHit"
+  | "casts"
+  | "cpm"
+  | "hits"
+  | "hpm";
+
+/** Per-skill breakdown header text, in display order, following the desktop meter's breakdown. */
+export const breakdownColumnLabels: Record<BreakdownColumnKey, string> = {
+  damage: "DMG",
+  dps: "DPS",
+  damagePercent: "D%",
+  crit: "CRIT",
+  critDamage: "CDMG",
+  frontAttack: "F.A",
+  backAttack: "B.A",
+  supportBuff: "Buff%",
+  brand: "B%",
+  identity: "Iden%",
+  hat: "T%",
+  avgPerHit: "APH",
+  avgPerCast: "APC",
+  maxHit: "MaxH",
+  casts: "Casts",
+  cpm: "CPM",
+  hits: "Hits",
+  hpm: "HPM"
+};
+
+/** Breakdown header tooltips, worded as in the desktop meter's `PlayerBreakdownColumns.svelte`. */
+export const breakdownColumnTooltips: Record<BreakdownColumnKey, string> = {
+  damage: "Damage Dealt",
+  dps: "Damage per second",
+  damagePercent: "Damage %",
+  crit: "Crit %",
+  critDamage: "% Damage that Crit",
+  frontAttack: "Front Attack Damage %",
+  backAttack: "Back Attack Damage %",
+  supportBuff: "% Damage buffed by Support Atk. Power Buff",
+  brand: "% Damage buffed by Brand",
+  identity: "% Damage buffed by Support Identity",
+  hat: "% Damage buffed by Support Hyper Awakening Skill (T Skill)",
+  avgPerHit: "Skill Average Damage per Hit",
+  avgPerCast: "Skill Average Damage per Cast",
+  maxHit: "Skill Max Hit Damage",
+  casts: "Number of casts",
+  cpm: "Casts per minute",
+  hits: "Number of hits",
+  hpm: "Hits per minute"
+};
+
 const defaults = {
   columns: {
     damage: true,
@@ -52,6 +116,27 @@ const defaults = {
     hat: true,
     deaths: true
   } satisfies Record<ColumnKey, boolean>,
+  // The desktop meter's breakdown defaults, plus the support uptimes.
+  breakdownColumns: {
+    damage: true,
+    dps: true,
+    damagePercent: true,
+    crit: true,
+    critDamage: false,
+    frontAttack: true,
+    backAttack: true,
+    supportBuff: true,
+    brand: true,
+    identity: true,
+    hat: true,
+    avgPerHit: false,
+    avgPerCast: false,
+    maxHit: true,
+    casts: true,
+    cpm: true,
+    hits: false,
+    hpm: false
+  } satisfies Record<BreakdownColumnKey, boolean>,
   splitParties: true,
   classColorBars: true
 };
@@ -66,6 +151,7 @@ export type ViewerSettings = typeof defaults;
  */
 class Settings {
   columns = $state({ ...defaults.columns });
+  breakdownColumns = $state({ ...defaults.breakdownColumns });
   splitParties = $state(defaults.splitParties);
   classColorBars = $state(defaults.classColorBars);
 
@@ -77,6 +163,7 @@ class Settings {
       if (stored) {
         const parsed = JSON.parse(stored) as Partial<ViewerSettings>;
         this.columns = { ...defaults.columns, ...parsed.columns };
+        this.breakdownColumns = { ...defaults.breakdownColumns, ...parsed.breakdownColumns };
         this.splitParties = parsed.splitParties ?? defaults.splitParties;
         this.classColorBars = parsed.classColorBars ?? defaults.classColorBars;
       }
@@ -88,6 +175,7 @@ class Settings {
       $effect(() => {
         const snapshot: ViewerSettings = {
           columns: { ...this.columns },
+          breakdownColumns: { ...this.breakdownColumns },
           splitParties: this.splitParties,
           classColorBars: this.classColorBars
         };

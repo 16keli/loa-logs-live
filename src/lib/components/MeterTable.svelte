@@ -36,7 +36,15 @@
 {:else}
   <div class="flex flex-col gap-3 p-1">
     {#each groups as group, i (i)}
-      <table class="w-full table-fixed border-separate border-spacing-y-px">
+      <!--
+        In a fixed layout the name column only gets what the w-14 value columns leave, which is nothing
+        once they outgrow the page (many columns, or a phone). The minimum width keeps it at 10rem and
+        lets the scroll container scroll sideways instead.
+      -->
+      <table
+        class="w-full table-fixed border-separate border-spacing-y-px"
+        style="min-width: calc(10rem + {visibleColumns.length} * 3.5rem)"
+      >
         <thead>
           <tr class="h-6 text-xs tracking-wide text-neutral-400 uppercase select-none">
             <th class="max-w-0 pl-1.5 text-left font-medium">
@@ -56,7 +64,7 @@
         </thead>
         <tbody>
           {#each group as row (row.key)}
-            <PlayerRowView {row} {visibleColumns} />
+            <PlayerRowView {row} {visibleColumns} onselect={(selected) => viewer.selectPlayer(selected.entity.name)} />
           {/each}
         </tbody>
       </table>

@@ -128,11 +128,19 @@ export interface Skill {
   casts: number;
   hits: number;
   crits: number;
+  critDamage: number;
   backAttacks: number;
   frontAttacks: number;
+  backAttackDamage: number;
+  frontAttackDamage: number;
+  buffedBySupport: number;
+  debuffedBySupport: number;
+  buffedByIdentity: number;
+  buffedByHat?: number;
   dps: number;
   /** Set on skills that buffs and crits cannot modify; absent otherwise. */
   special?: boolean;
+  isHyperAwakening?: boolean;
 }
 
 export interface StatusEffect {

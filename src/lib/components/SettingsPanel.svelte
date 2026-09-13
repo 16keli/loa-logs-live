@@ -1,8 +1,15 @@
 <script lang="ts">
-  import { type ColumnKey, columnLabels, settings } from "$lib/settings.svelte";
+  import {
+    type BreakdownColumnKey,
+    breakdownColumnLabels,
+    type ColumnKey,
+    columnLabels,
+    settings
+  } from "$lib/settings.svelte";
 
   let open = $state(false);
   let columnKeys = Object.keys(columnLabels) as ColumnKey[];
+  let breakdownColumnKeys = Object.keys(breakdownColumnLabels) as BreakdownColumnKey[];
 </script>
 
 <div class="relative">
@@ -26,6 +33,16 @@
           <label class="flex items-center gap-1.5">
             <input type="checkbox" class="accent-accent-500" bind:checked={settings.columns[column]} />
             {columnLabels[column]}
+          </label>
+        {/each}
+      </div>
+
+      <p class="mt-3 mb-2 text-xs tracking-wide text-neutral-400 uppercase">Breakdown columns</p>
+      <div class="grid grid-cols-2 gap-1">
+        {#each breakdownColumnKeys as column (column)}
+          <label class="flex items-center gap-1.5">
+            <input type="checkbox" class="accent-accent-500" bind:checked={settings.breakdownColumns[column]} />
+            {breakdownColumnLabels[column]}
           </label>
         {/each}
       </div>

@@ -6,7 +6,6 @@
   import SettingsPanel from "$lib/components/SettingsPanel.svelte";
   import { getBossHpBars } from "$lib/constants";
   import { LiveConnection } from "$lib/peer.svelte";
-  import { LIVE_PROTOCOL_VERSION } from "$lib/protocol";
   import { ViewerState } from "$lib/viewer.svelte";
   import { onMount } from "svelte";
 
@@ -66,13 +65,6 @@
 
 <main class="mx-auto flex h-dvh max-w-3xl flex-col">
   {#if status === "connected"}
-    {#if viewer.protocolMismatch !== null}
-      <div class="bg-amber-900/60 px-3 py-1.5 text-xs text-amber-100">
-        This host speaks protocol v{viewer.protocolMismatch}, but this page understands v{LIVE_PROTOCOL_VERSION}. Some
-        values may be wrong.
-      </div>
-    {/if}
-
     {#if boss}
       <BossBar {boss} />
     {/if}

@@ -1,7 +1,11 @@
+import { ungzip } from "pako";
 import { type DataConnection, Peer } from "peerjs";
 
-import { asLiveMessage, LIVE_PROTOCOL_VERSION } from "./protocol";
+import { asLiveMessage, type EncounterFrame } from "./protocol";
+import type { Encounter, EncounterDamageStats } from "./types";
 import type { ViewerState } from "./viewer.svelte";
+
+type BuffRegistries = Pick<EncounterDamageStats, "buffs" | "debuffs" | "appliedShieldBuffs">;
 
 export type ConnectionStatus = "connecting" | "connected" | "disconnected" | "error";
 
@@ -21,6 +25,8 @@ export class LiveConnection {
 
   #peer: Peer | null = null;
   #conn: DataConnection | null = null;
+  /** Last registries the host sent, replayed onto the trimmed frames that follow. */
+  #registries: BuffRegistries | null = null;
   #viewer: ViewerState;
   #peerId = "";
 
@@ -84,9 +90,14 @@ export class LiveConnection {
 
     switch (message.type) {
       case "encounterInfo": {
-        const protocol = message.protocol ?? LIVE_PROTOCOL_VERSION;
-        this.#viewer.protocolMismatch = protocol === LIVE_PROTOCOL_VERSION ? null : protocol;
-        this.#viewer.encounter = message.data;
+        if (message.data === null) {
+          this.#viewer.encounter = null;
+          this.#registries = null;
+          break;
+        }
+        // A frame that fails to decode is skipped, not treated as a clear.
+        const encounter = this.#decodeFrame(message.data);
+        if (encounter) this.#viewer.encounter = this.#withRegistries(encounter);
         break;
       }
       case "bossStatus":
@@ -99,6 +110,38 @@ export class LiveConnection {
         this.#viewer.meterStatus = message.data;
         break;
     }
+  }
+
+  /** Inflate a gzipped JSON frame. Binarypack delivers the bytes as an ArrayBuffer. */
+  #decodeFrame(data: Exclude<EncounterFrame, null>): Encounter | null {
+    try {
+      const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
+      return JSON.parse(ungzip(bytes, { to: "string" })) as Encounter;
+    } catch (e) {
+      console.error("live: could not decode encounter frame", e);
+      return null;
+    }
+  }
+
+  /**
+   * Put the buff registries back on a trimmed frame.
+   *
+   * The host sends them only on this connection's first frame of a fight and `null` afterwards, so
+   * everything downstream can treat them as always present.
+   */
+  #withRegistries(encounter: Encounter): Encounter {
+    const stats = encounter.encounterDamageStats;
+
+    if (stats.buffs) {
+      const { buffs, debuffs, appliedShieldBuffs } = stats;
+      this.#registries = { buffs, debuffs, appliedShieldBuffs };
+      return encounter;
+    }
+
+    // Nothing cached yet means we joined before the host sent them; leave the frame as it came.
+    if (!this.#registries) return encounter;
+
+    return { ...encounter, encounterDamageStats: { ...stats, ...this.#registries } };
   }
 
   #fail(message: string) {

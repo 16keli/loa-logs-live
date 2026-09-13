@@ -2,9 +2,9 @@
  * Wire types for the live-sharing stream.
  *
  * These mirror `src/lib/types.ts` in the LOA Logs desktop app. The desktop app broadcasts its
- * `Encounter` verbatim with no schema negotiation, so this file is hand-maintained and must be kept
- * in sync whenever the meter's live snapshot changes shape. `LIVE_PROTOCOL_VERSION` in
- * `src/lib/protocol.ts` guards against silently rendering against an incompatible build.
+ * `Encounter` verbatim with no version negotiation, so this file is hand-maintained and must be
+ * kept in sync whenever the meter's live snapshot changes shape. Render defensively: a field that
+ * an older or newer host does not send arrives as `undefined`.
  *
  * Only the fields the viewer actually reads are typed precisely; the rest are kept for fidelity.
  */
@@ -42,11 +42,19 @@ export interface EncounterDamageStats {
   totalDamageTaken: number;
   topDamageTaken: number;
   dps: number;
-  buffs: Record<number, StatusEffect>;
-  debuffs: Record<number, StatusEffect>;
   totalShielding: number;
   totalEffectiveShielding: number;
-  appliedShieldBuffs: Record<number, StatusEffect>;
+
+  /**
+   * Encounter-wide status effect lookups.
+   *
+   * The host sends these only on a viewer's first frame of a fight — they are roughly a third of
+   * the payload and barely change — and `null` thereafter. `LiveConnection` splices the last known
+   * copy back in, so by the time this reaches the UI they are populated again.
+   */
+  buffs: Record<number, StatusEffect> | null;
+  debuffs: Record<number, StatusEffect> | null;
+  appliedShieldBuffs: Record<number, StatusEffect> | null;
 }
 
 export interface Entity {

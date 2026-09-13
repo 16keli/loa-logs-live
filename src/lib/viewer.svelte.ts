@@ -22,9 +22,6 @@ export class ViewerState {
   /** Local wall clock, advanced once a second so the duration ticks between frames. */
   now = $state(Date.now());
 
-  /** Set when a host announces a protocol version this build does not understand. */
-  protocolMismatch = $state<number | null>(null);
-
   fightStart = $derived(this.encounter?.fightStart ?? 0);
 
   /**

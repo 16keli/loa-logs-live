@@ -1,13 +1,3 @@
-import type { Encounter } from "./types";
-
-/**
- * Must match `LIVE_PROTOCOL_VERSION` in the desktop app's `src/lib/utils/live.svelte.ts`.
- *
- * The host sends its `Encounter` verbatim, so a desktop build that changed the snapshot shape would
- * otherwise render as silently wrong numbers rather than an obvious error.
- */
-export const LIVE_PROTOCOL_VERSION = 1;
-
 /** Boss HP, broadcast at ~5 Hz. Predates the full-encounter stream; shape is fixed. */
 export interface BossStatus {
   name: string;
@@ -23,9 +13,18 @@ export interface MeterStatus {
   raidInProgress: boolean;
 }
 
+/**
+ * An encounter frame: gzipped JSON of an `Encounter`, or `null` when the host clears it.
+ *
+ * The host compresses because it is both smaller and cheaper than letting binarypack walk the
+ * object — see `compressFrame` in the desktop app's `src/lib/utils/live.svelte.ts`. Binarypack
+ * hands the bytes back as an `ArrayBuffer`.
+ */
+export type EncounterFrame = ArrayBuffer | Uint8Array | null;
+
 export type LiveMessage =
   | { type: "bossStatus"; data: BossStatus | null }
-  | { type: "encounterInfo"; protocol?: number; data: Encounter | null }
+  | { type: "encounterInfo"; data: EncounterFrame }
   | { type: "partyUpdate"; data: string[][] | null }
   | { type: "meterStatus"; data: MeterStatus };
 

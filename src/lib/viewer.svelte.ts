@@ -65,6 +65,10 @@ export class ViewerState {
       crit: entities.some((e) => e.skillStats.hits > 0),
       frontAttack: entities.some((e) => e.damageStats.frontAttackDamage > 0),
       backAttack: entities.some((e) => e.damageStats.backAttackDamage > 0),
+      supportBuff: entities.some((e) => e.damageStats.buffedBySupport > 0),
+      brand: entities.some((e) => e.damageStats.debuffedBySupport > 0),
+      identity: entities.some((e) => e.damageStats.buffedByIdentity > 0),
+      hat: entities.some((e) => (e.damageStats.buffedByHat ?? 0) > 0),
       deaths: entities.some((e) => e.damageStats.deaths > 0),
       counters: entities.some((e) => e.skillStats.counters > 0)
     };
@@ -162,6 +166,46 @@ export class PlayerRow {
 
   get backAttackPercent(): number {
     return percent(this.entity.damageStats.backAttackDamage, this.damage);
+  }
+
+  #damageWithoutSpecial: number | undefined;
+
+  /**
+   * Damage excluding special skills, which no buff can modify. Cached because the four support
+   * columns all read it, and a row's entity never changes: rows are rebuilt for every frame.
+   */
+  get damageWithoutSpecial(): number {
+    if (this.#damageWithoutSpecial === undefined) {
+      let special = 0;
+      for (const skill of Object.values(this.entity.skills)) {
+        if (skill.special) special += skill.totalDamage;
+      }
+      this.#damageWithoutSpecial = this.damage - special;
+    }
+    return this.#damageWithoutSpecial;
+  }
+
+  // Support uptimes use the desktop meter's denominators (DamageMeterColumns.svelte): hyper awakening
+  // damage is left out of every one except T%.
+
+  get supportBuffPercent(): number {
+    return percent(this.entity.damageStats.buffedBySupport, this.#damageWithoutSpecialOrHa);
+  }
+
+  get brandPercent(): number {
+    return percent(this.entity.damageStats.debuffedBySupport, this.#damageWithoutSpecialOrHa);
+  }
+
+  get identityPercent(): number {
+    return percent(this.entity.damageStats.buffedByIdentity, this.#damageWithoutSpecialOrHa);
+  }
+
+  get hatPercent(): number {
+    return percent(this.entity.damageStats.buffedByHat ?? 0, this.damageWithoutSpecial);
+  }
+
+  get #damageWithoutSpecialOrHa(): number {
+    return this.damageWithoutSpecial - (this.entity.damageStats.hyperAwakeningDamage ?? 0);
   }
 
   get deaths(): number {

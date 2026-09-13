@@ -131,6 +131,8 @@ export interface Skill {
   backAttacks: number;
   frontAttacks: number;
   dps: number;
+  /** Set on skills that buffs and crits cannot modify; absent otherwise. */
+  special?: boolean;
 }
 
 export interface StatusEffect {

@@ -63,7 +63,7 @@
   <title>{viewer.encounter?.currentBossName || "LOA Logs Live"}</title>
 </svelte:head>
 
-<main class="mx-auto flex h-dvh max-w-3xl flex-col">
+<main class="mx-auto flex h-dvh max-w-4xl flex-col">
   {#if status === "connected"}
     {#if boss}
       <BossBar {boss} />

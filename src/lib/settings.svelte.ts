@@ -2,8 +2,20 @@ import { browser } from "$app/environment";
 
 const STORAGE_KEY = "loa-logs-live:settings";
 
-export type ColumnKey = "damage" | "damagePercent" | "dps" | "crit" | "frontAttack" | "backAttack" | "deaths";
+export type ColumnKey =
+  | "damage"
+  | "damagePercent"
+  | "dps"
+  | "crit"
+  | "frontAttack"
+  | "backAttack"
+  | "supportBuff"
+  | "brand"
+  | "identity"
+  | "hat"
+  | "deaths";
 
+/** Header text, in display order. The support columns use the desktop meter's labels. */
 export const columnLabels: Record<ColumnKey, string> = {
   damage: "DMG",
   damagePercent: "D%",
@@ -11,7 +23,19 @@ export const columnLabels: Record<ColumnKey, string> = {
   crit: "CRIT",
   frontAttack: "F.A",
   backAttack: "B.A",
+  supportBuff: "Buff%",
+  brand: "B%",
+  identity: "Iden%",
+  hat: "T%",
   deaths: "DEAD"
+};
+
+/** Header tooltips for the labels that don't explain themselves, worded as in the desktop meter. */
+export const columnTooltips: Partial<Record<ColumnKey, string>> = {
+  supportBuff: "% Damage buffed by Support Atk. Power buff",
+  brand: "% Damage buffed by Brand",
+  identity: "% Damage buffed by Support Identity",
+  hat: "% Damage buffed by Support Hyper Awakening Skill (T Skill)"
 };
 
 const defaults = {
@@ -22,6 +46,10 @@ const defaults = {
     crit: true,
     frontAttack: true,
     backAttack: true,
+    supportBuff: true,
+    brand: true,
+    identity: true,
+    hat: true,
     deaths: true
   } satisfies Record<ColumnKey, boolean>,
   splitParties: true,

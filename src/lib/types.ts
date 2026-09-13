@@ -177,6 +177,12 @@ export interface StatusEffectSource {
   name: string;
   desc: string;
   icon: string;
-  skill?: unknown;
+  /** The skill that applies the effect, when it comes from one. */
+  skill?: StatusEffectSkill | null;
   setName?: string;
+}
+
+export interface StatusEffectSkill {
+  id: number;
+  classId: number;
 }

@@ -138,6 +138,37 @@ export const arcanistCardIds: ReadonlySet<number> = new Set([
   19090, 19091, 19092, 19093, 19094, 19095, 19096, 19097, 19098, 19099, 19280, 19281, 19284, 19285, 19286, 19287
 ]);
 
+/** The status effect group every brand debuff shares. */
+export const BRAND_UNIQUE_GROUP = 210230;
+
+/**
+ * Support identity skills whose brand the game credits to the identity rather than to brand. From
+ * `supportSkills.identityBrandSources` in `src/lib/utils/buffs.ts`.
+ */
+export const identityBrandSourceIds: ReadonlySet<number> = new Set([
+  21140,
+  21141,
+  21142,
+  21143, // Bard Serenade of Courage
+  31050,
+  31051, // Artist Moonfall
+  36800, // Paladin Blessed Aura / Holy Aura
+  48040,
+  48041,
+  48042 // Valkyrie Release Light
+]);
+
+/** Id of the breakdown row that carries a support's identity brand. From `src/lib/entity.svelte.ts`. */
+export const IDENTITY_BRAND_SKILL_ID = -210230;
+
+/** Name and icon of that row, per class. From `src/lib/entity.svelte.ts`. */
+export const identityBrandRows: Record<string, { name: string; icon: string }> = {
+  Artist: { name: "Brand Enhancement (Moonfall Brand)", icon: "ark_passive_yy_6.png" },
+  Paladin: { name: "Light's Vestige (Blessed Aura Brand)", icon: "ark_passive_hk_7.png" },
+  Bard: { name: "Serenade of Branding (Serenade Brand)", icon: "ark_passive_bd_9.png" },
+  Valkyrie: { name: "Liberator's Sign (Release Light Brand)", icon: "ark_passive_hkf_10.png" }
+};
+
 /** Bosses whose HP bar count is fixed rather than derived. From `src/lib/constants/encounters.ts`. */
 export const bossHpMap: Record<string, number> = {
   "Dark Mountain Predator": 50,

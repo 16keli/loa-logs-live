@@ -8,9 +8,28 @@
     breakdownColumnTooltips,
     settings
   } from "$lib/settings.svelte";
-  import type { PlayerRow } from "$lib/viewer.svelte";
+  import type { PlayerRow, SkillSort } from "$lib/viewer.svelte";
 
-  let { row, onback }: { row: PlayerRow; onback: () => void } = $props();
+  let { row, onback, onsort }: { row: PlayerRow; onback: () => void; onsort: (sort: SkillSort) => void } = $props();
+
+  /** A support's breakdown leads with what they buffed, per `supportPriority` in the meter's columns. */
+  const supportPriority: Partial<Record<BreakdownColumnKey, number>> = {
+    buffedDamage: 1,
+    buffedDps: 2,
+    buffedDamagePercent: 3,
+    damage: 4,
+    dps: 5,
+    damagePercent: 6,
+    unbuffedDamage: 7,
+    unbuffedDps: 8
+  };
+
+  /** The column each sort is driven from; clicking it switches to that sort. */
+  const sortColumns: Partial<Record<BreakdownColumnKey, SkillSort>> = {
+    damage: "damage",
+    buffedDamage: "buffed",
+    stagger: "stagger"
+  };
 
   /** Same rule as the player list: a column shows when it's wanted *and* has data, per the meter's show(). */
   let visibleColumns = $derived.by(() => {
@@ -52,9 +71,11 @@
       damageReduced: any((s) => s.damageReduced)
     };
 
-    return (Object.keys(breakdownColumnLabels) as BreakdownColumnKey[]).filter(
+    const columns = (Object.keys(breakdownColumnLabels) as BreakdownColumnKey[]).filter(
       (c) => settings.breakdownColumns[c] && hasData[c]
     );
+    if (!row.isSupport) return columns;
+    return columns.sort((a, b) => (supportPriority[a] ?? 999) - (supportPriority[b] ?? 999));
   });
 
   function abbreviated(n: number): { value: string; unit: string; title: string } {
@@ -162,9 +183,27 @@
           </button>
         </th>
         {#each visibleColumns as column (column)}
-          <th class="w-14 px-1 text-right font-medium" title={breakdownColumnTooltips[column]}>
-            {breakdownColumnLabels[column]}
-          </th>
+          {@const sort = sortColumns[column]}
+          {#if sort}
+            <th
+              class="w-14 px-1 text-right font-medium"
+              style={row.skillSort === sort ? `background-color: rgb(from ${row.color} r g b / 0.1)` : ""}
+              title={breakdownColumnTooltips[column]}
+              aria-sort={row.skillSort === sort ? "descending" : "none"}
+            >
+              <button
+                class="underline underline-offset-2 hover:text-neutral-100"
+                class:text-neutral-100={row.skillSort === sort}
+                onclick={() => onsort(sort)}
+              >
+                {breakdownColumnLabels[column]}
+              </button>
+            </th>
+          {:else}
+            <th class="w-14 px-1 text-right font-medium" title={breakdownColumnTooltips[column]}>
+              {breakdownColumnLabels[column]}
+            </th>
+          {/if}
         {/each}
         <!-- Claims the bar cell's column slot; see MeterTable.svelte. -->
         <th class="w-0 p-0" aria-hidden="true"></th>

@@ -96,7 +96,11 @@
       {oncontextmenu}
     >
       {#if viewer.selectedRow}
-        <SkillBreakdown row={viewer.selectedRow} onback={() => viewer.closeBreakdown()} />
+        <SkillBreakdown
+          row={viewer.selectedRow}
+          onback={() => viewer.closeBreakdown()}
+          onsort={(sort) => (viewer.skillSort = sort)}
+        />
       {:else}
         <MeterTable {viewer} />
       {/if}

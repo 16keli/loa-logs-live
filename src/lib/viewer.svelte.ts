@@ -1,4 +1,14 @@
-import { arcanistCardIds, classColor, hyperAwakeningIds, isSupportSpec, skillIcon } from "./constants";
+import {
+  arcanistCardIds,
+  BRAND_UNIQUE_GROUP,
+  classColor,
+  hyperAwakeningIds,
+  IDENTITY_BRAND_SKILL_ID,
+  identityBrandRows,
+  identityBrandSourceIds,
+  isSupportSpec,
+  skillIcon
+} from "./constants";
 import { isNameValid, percent } from "./format";
 import type { BossStatus, MeterStatus } from "./protocol";
 import { type Encounter, type Entity, EntityType, type IncapacitatedEvent, type Skill } from "./types";
@@ -14,6 +24,17 @@ import { type Encounter, type Entity, EntityType, type IncapacitatedEvent, type 
  * Formulas follow the desktop app's `src/lib/entity.svelte.ts`, `src/lib/skill.svelte.ts` and the
  * column definitions in `DamageMeterColumns.svelte` / `PlayerBreakdownColumns.svelte`.
  */
+export type SkillSort = "damage" | "buffed" | "stagger";
+
+/** A support's identity brand: see `ViewerState.identityBrandByPlayer`. */
+interface IdentityBrand {
+  /** Estimated brand damage credited to the identity skills. */
+  damage: number;
+  /** Those skills' identity contribution (type 1), which `damage` is split across. */
+  identityContributed: number;
+  casts: number;
+}
+
 export class ViewerState {
   // `$state.raw` throughout: every frame replaces these wholesale and nothing mutates them in
   // place, so there is no reason to pay for deep proxying of a several-hundred-KB encounter.
@@ -168,6 +189,70 @@ export class ViewerState {
     return scope.filter((e) => !this.supportNames.has(e.name));
   }
 
+  /**
+   * Per support, the brand damage the game credited to their identity skill instead of to brand.
+   *
+   * Some identities (Serenade of Courage, Moonfall, Blessed Aura, Release Light) also apply brand,
+   * and the game reports that bonus under the identity's contribution. As the meter does in
+   * `identityBrandContextByPlayer`, this estimates it by scaling the support's regular brand damage
+   * by how much party damage landed under identity brand versus regular brand. Supports it doesn't
+   * apply to are absent. Needs the host's debuff registry, which a host only keeps current for
+   * viewers when it resends the registries as they grow.
+   */
+  identityBrandByPlayer = $derived.by(() => {
+    const result = new Map<string, IdentityBrand>();
+    const debuffs = this.encounter?.encounterDamageStats.debuffs;
+    if (!this.encounter || !debuffs) return result;
+
+    for (const name of this.supportNames) {
+      const entity = this.encounter.entities[name];
+      if (!entity) continue;
+
+      // This support's class's brand debuffs, split by whether an identity skill applies them.
+      const identityBrandIds = new Set<number>();
+      const regularBrandIds = new Set<number>();
+      for (const [id, debuff] of Object.entries(debuffs)) {
+        const skill = debuff.source.skill;
+        if (debuff.uniqueGroup !== BRAND_UNIQUE_GROUP || !skill || skill.classId !== entity.classId) continue;
+        (identityBrandSourceIds.has(skill.id) ? identityBrandIds : regularBrandIds).add(Number(id));
+      }
+      if (identityBrandIds.size === 0) continue;
+
+      // Damage the DPS in their party dealt under each kind of brand.
+      let identityWindow = 0;
+      let regularWindow = 0;
+      for (const player of this.contributionScopeDps(name)) {
+        for (const [id, damage] of Object.entries(player.damageStats.debuffedBy)) {
+          if (identityBrandIds.has(Number(id))) identityWindow += damage;
+          else if (regularBrandIds.has(Number(id))) regularWindow += damage;
+        }
+      }
+      if (identityWindow === 0 || regularWindow === 0) continue;
+
+      // The support's regular brand damage: contribution type 3, boss debuffs.
+      const skills = Object.values(entity.skills);
+      const regularBrandDamage = skills.reduce((sum, skill) => sum + (skill.rdpsContributed?.[3] ?? 0), 0);
+      if (regularBrandDamage === 0) continue;
+
+      const damage = Math.round(regularBrandDamage * (identityWindow / regularWindow));
+      if (damage <= 0) continue;
+
+      // The identity skills' own contribution (type 1), which the brand damage is taken back out of.
+      let identityContributed = 0;
+      let casts = 0;
+      for (const skill of skills) {
+        if (!identityBrandSourceIds.has(skill.id)) continue;
+        identityContributed += skill.rdpsContributed?.[1] ?? 0;
+        casts += skill.casts;
+      }
+      if (identityContributed === 0) continue;
+
+      result.set(name, { damage, identityContributed, casts });
+    }
+
+    return result;
+  });
+
   /** The player whose breakdown is open, pinned to the fight it was opened in. */
   #selection = $state.raw<{ name: string; fightStart: number } | null>(null);
 
@@ -183,8 +268,15 @@ export class ViewerState {
     return this.players.find((row) => row.entity.name === selection.name) ?? null;
   });
 
+  /**
+   * How the open breakdown orders its skills. Every breakdown opens on "buffed", as in the meter:
+   * supports see their skills by damage buffed, and everyone else falls back to damage.
+   */
+  skillSort = $state<SkillSort>("buffed");
+
   selectPlayer(name: string) {
     this.#selection = { name, fightStart: this.fightStart };
+    this.skillSort = "buffed";
   }
 
   closeBreakdown() {
@@ -394,10 +486,10 @@ export class PlayerRow {
     return perSecond(this.unbuffedDamage, this.#viewer.durationSeconds);
   }
 
-  /** Damage a support's buffs added to others, summed over their skills. */
+  /** Damage a support's buffs added to others, summed over their breakdown skills as in the meter. */
   get totalDamageBuffed(): number {
     if (!this.isSupport) return 0;
-    return Object.values(this.entity.skills).reduce((sum, skill) => sum + sumContributed(skill, BUFF_TYPES), 0);
+    return this.breakdownSkills.reduce((sum, skill) => sum + sumContributed(skill, BUFF_TYPES), 0);
   }
 
   get totalDpsBuffed(): number {
@@ -477,22 +569,54 @@ export class PlayerRow {
     return this.#viewer.partyByName.get(this.entity.name);
   }
 
-  #skills: SkillRow[] | undefined;
+  /** The breakdown sort in effect: "buffed" only means something for supports, "stagger" only with stagger. */
+  get skillSort(): SkillSort {
+    const sort = this.#viewer.skillSort;
+    if (sort === "buffed" && !this.isSupport) return "damage";
+    if (sort === "stagger" && this.stagger <= 0) return "damage";
+    return sort;
+  }
+
+  #breakdownSkills: { brand: IdentityBrand | undefined; skills: Skill[] } | undefined;
 
   /**
-   * Skills for the breakdown, damage descending, with Arcanist cards hidden as the meter does.
-   * Cached for the same reason as the special-skill totals.
+   * The player's skills as the breakdown counts them, as `EntityState.skills` does in the meter:
+   * Arcanist cards hidden, and a support's identity brand moved off the identity skills into a row
+   * of its own. Unsorted.
+   *
+   * Cached against the identity brand it was built from, which is looked up on every call so that a
+   * party update that changes it (without a new frame) is still picked up.
    */
-  get skills(): SkillRow[] {
-    if (this.#skills === undefined) {
+  get breakdownSkills(): Skill[] {
+    const brand = this.#viewer.identityBrandByPlayer.get(this.entity.name);
+    if (this.#breakdownSkills?.brand !== brand || this.#breakdownSkills === undefined) {
       let skills = Object.values(this.entity.skills);
       if (this.entity.class === "Arcanist") skills = skills.filter((skill) => !arcanistCardIds.has(skill.id));
-      skills.sort((a, b) => b.totalDamage - a.totalDamage);
-
-      const top = skills[0]?.totalDamage ?? 0;
-      this.#skills = skills.map((skill) => new SkillRow(skill, this, this.#viewer, top));
+      else if (brand) skills = withIdentityBrand(skills, brand, this.entity.class);
+      this.#breakdownSkills = { brand, skills };
     }
-    return this.#skills;
+    return this.#breakdownSkills.skills;
+  }
+
+  #skills: { sort: SkillSort; source: Skill[]; rows: SkillRow[] } | undefined;
+
+  /**
+   * Skills for the breakdown, descending by the sort in effect. Cached per sort for the same reason
+   * as the special-skill totals.
+   */
+  get skills(): SkillRow[] {
+    const sort = this.skillSort;
+    const source = this.breakdownSkills;
+    if (this.#skills?.sort !== sort || this.#skills.source !== source) {
+      const skills = [...source].sort((a, b) => skillSortValue(b, sort) - skillSortValue(a, sort));
+      const top = skills[0] ? skillSortValue(skills[0], sort) : 0;
+      this.#skills = {
+        sort,
+        source,
+        rows: skills.map((skill) => new SkillRow(skill, this, this.#viewer, top, sort))
+      };
+    }
+    return this.#skills.rows;
   }
 }
 
@@ -504,13 +628,15 @@ export class SkillRow {
   readonly skill: Skill;
   readonly #player: PlayerRow;
   readonly #viewer: ViewerState;
-  readonly #topDamage: number;
+  readonly #topValue: number;
+  readonly #sort: SkillSort;
 
-  constructor(skill: Skill, player: PlayerRow, viewer: ViewerState, topDamage: number) {
+  constructor(skill: Skill, player: PlayerRow, viewer: ViewerState, topValue: number, sort: SkillSort) {
     this.skill = skill;
     this.#player = player;
     this.#viewer = viewer;
-    this.#topDamage = topDamage;
+    this.#topValue = topValue;
+    this.#sort = sort;
   }
 
   get key(): number {
@@ -542,9 +668,9 @@ export class SkillRow {
     return percent(this.damage, this.#player.damage);
   }
 
-  /** Bars are scaled against the top skill, as the meter does. */
+  /** Bars are scaled against the top skill by the value being sorted on, as the meter does. */
   get barWidth(): number {
-    return this.#topDamage > 0 ? (this.damage / this.#topDamage) * 100 : 0;
+    return this.#topValue > 0 ? (skillSortValue(this.skill, this.#sort) / this.#topValue) * 100 : 0;
   }
 
   get critPercent(): number {
@@ -677,6 +803,55 @@ const BUFF_TYPES = [1, 3, 5];
 const DR_TYPES = [4, 6];
 
 /** `sumUdpsContributed` in the meter. */
+/**
+ * A support's skills with their identity brand split out, as `EntityState.skills` does in the meter:
+ * each identity skill gives up its share of the brand damage, which becomes a row of its own.
+ */
+function withIdentityBrand(skills: Skill[], brand: IdentityBrand, className: string): Skill[] {
+  const adjusted = skills.map((skill) => {
+    const identity = skill.rdpsContributed?.[1] ?? 0;
+    if (!identityBrandSourceIds.has(skill.id) || identity <= 0) return skill;
+
+    const reduction = Math.round(brand.damage * (identity / brand.identityContributed));
+    return { ...skill, rdpsContributed: { ...skill.rdpsContributed, 1: Math.max(0, identity - reduction) } };
+  });
+
+  const row = identityBrandRows[className] ?? { name: "Identity Brand", icon: "" };
+  adjusted.push({
+    id: IDENTITY_BRAND_SKILL_ID,
+    name: row.name,
+    icon: row.icon,
+    totalDamage: 0,
+    maxDamage: 0,
+    casts: brand.casts,
+    hits: 0,
+    crits: 0,
+    critDamage: 0,
+    backAttacks: 0,
+    frontAttacks: 0,
+    backAttackDamage: 0,
+    frontAttackDamage: 0,
+    buffedBySupport: 0,
+    debuffedBySupport: 0,
+    buffedByIdentity: 0,
+    buffedByHat: 0,
+    dps: 0,
+    stagger: 0,
+    rdpsReceived: {},
+    // Stored as brand (type 3, a boss debuff), which is what it is.
+    rdpsContributed: { 3: brand.damage },
+    rdpsDamageReceived: 0
+  });
+
+  return adjusted;
+}
+
+function skillSortValue(skill: Skill, sort: SkillSort): number {
+  if (sort === "stagger") return skill.stagger ?? 0;
+  if (sort === "buffed") return sumContributed(skill, BUFF_TYPES);
+  return skill.totalDamage;
+}
+
 function sumContributed(skill: Skill, types: number[]): number {
   const contributed = skill.rdpsContributed;
   if (!contributed) return 0;

@@ -223,18 +223,19 @@ const defaults = {
     stagger: false,
     counters: false
   } satisfies Record<ColumnKey, boolean>,
-  // The desktop meter's breakdown defaults, plus the support uptimes.
+  // The desktop meter's breakdown defaults, plus the support uptimes. The buffed columns only ever
+  // show for supports, and the meter shows bDMG and bDPS for them unconditionally.
   breakdownColumns: {
     damage: true,
     unbuffedDamage: false,
     ndmg: false,
-    buffedDamage: false,
+    buffedDamage: true,
     dps: true,
     unbuffedDps: false,
     ndps: false,
-    buffedDps: false,
+    buffedDps: true,
     damagePercent: true,
-    buffedDamagePercent: false,
+    buffedDamagePercent: true,
     crit: true,
     critDamage: false,
     frontAttackHits: false,

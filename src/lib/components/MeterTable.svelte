@@ -1,7 +1,7 @@
 <script lang="ts">
   import PlayerRowView from "$lib/components/PlayerRow.svelte";
   import { type ColumnKey, columnLabels, columnTooltips, settings } from "$lib/settings.svelte";
-  import type { ViewerState } from "$lib/viewer.svelte";
+  import { SIDEREAL_PARTY, type ViewerState } from "$lib/viewer.svelte";
   import { flip } from "svelte/animate";
 
   let { viewer }: { viewer: ViewerState } = $props();
@@ -67,7 +67,9 @@
           <!-- No uppercase: the meter's labels are case-sensitive (nDPS, uDMG, rCon%). -->
           <tr class="h-6 text-xs text-neutral-400 select-none">
             <th class="max-w-0 pl-1.5 text-left font-medium tracking-wide uppercase">
-              {#if settings.splitParties && groups.length > 1}
+              {#if group.party === SIDEREAL_PARTY}
+                Sidereals
+              {:else if settings.splitParties && groups.length > 1}
                 Party {i + 1}
               {/if}
             </th>

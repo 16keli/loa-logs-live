@@ -30,6 +30,11 @@ export function percent(value: number, total: number): number {
   return (value / total) * 100;
 }
 
+/** Item level or combat power without trailing zeros, e.g. 1745.83 or 1740. `normalizeIlvl` in the meter. */
+export function normalizeIlvl(value: number): string {
+  return value.toFixed(2).replace(/\.?0+$/, "");
+}
+
 export function formatPercent(value: number, decimals = 1): string {
   return value.toFixed(decimals) + "%";
 }

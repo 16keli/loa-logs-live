@@ -66,6 +66,18 @@
         <input type="checkbox" class="accent-accent-500" bind:checked={settings.classColorBars} />
         Class colors
       </label>
+      <label class="mt-1 flex items-center gap-1.5" title="Show damage dealt by sidereal (Esther) skills">
+        <input type="checkbox" class="accent-accent-500" bind:checked={settings.showSidereals} />
+        Sidereals
+      </label>
+      <label class="mt-1 flex items-center gap-1.5" title="Show each character's item level before their name">
+        <input type="checkbox" class="accent-accent-500" bind:checked={settings.showItemLevel} />
+        Item level
+      </label>
+      <label class="mt-1 flex items-center gap-1.5" title="Show a lostark.bible link beside each name">
+        <input type="checkbox" class="accent-accent-500" bind:checked={settings.profileShortcut} />
+        Profile shortcut
+      </label>
     </div>
   {/if}
 </div>

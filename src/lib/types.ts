@@ -61,6 +61,18 @@ export interface EncounterDamageStats {
 export interface EncounterMisc {
   /** False when the host couldn't attribute raid contributions reliably; rDPS columns stay hidden. */
   rdpsValid?: boolean;
+  region?: string;
+  /**
+   * Per-player breakdown of received contributions. The host builds it when it saves the log, so a
+   * live frame normally lacks it.
+   */
+  contributionSplits?: ContributionSplit[];
+}
+
+export interface ContributionSplit {
+  name: string;
+  /** Contribution received, by contributor name ("DarkGrenadeSynergy" for the dark grenade). */
+  damageSplitByName: Record<string, number>;
 }
 
 export interface Entity {
@@ -83,9 +95,23 @@ export interface Entity {
   skillStats: SkillStats;
   engravingData?: Array<string>;
   arkPassiveActive?: boolean;
+  arkPassiveData?: ArkPassiveData | null;
   spec?: string;
   loadoutHash?: string;
   combatPower?: number;
+}
+
+export interface ArkPassiveData {
+  evolution?: ArkPassiveNode[];
+  enlightenment?: ArkPassiveNode[];
+  leap?: ArkPassiveNode[];
+  /** Order core index chosen per core type, when the host knows it. */
+  arkGridOrder?: { sun?: number; moon?: number; star?: number };
+}
+
+export interface ArkPassiveNode {
+  id: number;
+  lv: number;
 }
 
 export interface DamageStats {

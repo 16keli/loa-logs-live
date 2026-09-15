@@ -1,6 +1,6 @@
 <script lang="ts">
   import SkillRowView from "$lib/components/SkillRow.svelte";
-  import { classIcon, withAlpha } from "$lib/constants";
+  import { withAlpha } from "$lib/constants";
   import { abbreviateNumberSplit, formatPercent } from "$lib/format";
   import {
     type BreakdownColumnKey,
@@ -10,6 +10,9 @@
   } from "$lib/settings.svelte";
   import type { PlayerRow, SkillSort } from "$lib/viewer.svelte";
   import { flip } from "svelte/animate";
+
+  import PlayerName from "./PlayerName.svelte";
+  import Tooltip from "./Tooltip.svelte";
 
   let { row, onback, onsort }: { row: PlayerRow; onback: () => void; onsort: (sort: SkillSort) => void } = $props();
 
@@ -213,23 +216,15 @@
     <tbody>
       <tr class="relative isolate h-7 text-sm">
         <td class="max-w-0 pr-2 pl-1.5">
-          <div class="flex items-center gap-1.5">
-            <img
-              class="size-5 shrink-0"
-              src={classIcon(row.entity.classId)}
-              alt={row.entity.class}
-              title={row.entity.class}
-            />
-            <span class="truncate font-medium" class:text-accent-400={row.isLocalPlayer} title={row.name}>
-              {row.name}
-            </span>
-          </div>
+          <PlayerName {row} bold />
         </td>
 
         {#each visibleColumns as column (column)}
           {@const c = totalCell(column)}
-          <td class="tabular w-14 px-1 text-right whitespace-nowrap" title={c.title}>
-            {c.value}{#if c.unit}<span class="text-xs opacity-70">{c.unit}</span>{/if}
+          <td class="tabular w-14 px-1 text-right whitespace-nowrap">
+            <Tooltip tooltip={c.title}>
+              {c.value}{#if c.unit}<span class="text-xs opacity-70">{c.unit}</span>{/if}
+            </Tooltip>
           </td>
         {/each}
 

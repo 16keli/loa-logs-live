@@ -77,6 +77,45 @@ export function classIcon(classId: number): string {
   return `${base}/images/classes/${classId}.png`;
 }
 
+/** Character profiles and loadout snapshots. `LOA_BIBLE_URL` in the meter's `src/lib/utils.ts`. */
+export const LOA_BIBLE_URL = "https://lostark.bible";
+
+/** Bar color for sidereal (Esther) rows. From `EntityState.color` in `src/lib/entity.svelte.ts`. */
+export const SIDEREAL_COLOR = "#4dc8d0";
+
+/** Sidereal icon by the name the host sends. From `estherNameToIcon` in `src/lib/constants/esthers.ts`. */
+const siderealIcons: Record<string, string> = {
+  Thirain: "esther_0",
+  Wei: "esther_1",
+  Balthorr: "esther_2",
+  Nineveh: "esther_3",
+  Inanna: "esther_4",
+  Azena: "esther_5",
+  Shandi: "esther_6",
+  "Kadan Attack": "esther_7",
+  "Kadan Defense": "esther_8",
+  Avele: "combined_3",
+  Thar: "combined_2",
+  Ephernia: "combined_4",
+  Bastian: "combined_6",
+  Ealyn: "combined_7",
+  Jederico: "combined_8",
+  Gustaven: "combined_9",
+  Mystic: "combined_13",
+  Mariu: "combined_14",
+  Azakiel: "combined_15",
+  Kharmine: "combined_17",
+  Kadan: "esther_7",
+  Armen: "combined_18",
+  "Armen Attack": "combined_18",
+  "Armen Defense": "combined_19"
+};
+
+export function siderealIcon(name: string): string {
+  const icon = siderealIcons[name];
+  return icon ? `${base}/images/sidereals/${icon}.png` : SKILL_ICON_PLACEHOLDER;
+}
+
 /** Shown for skills with no icon, or one the CDN doesn't have. Bundled, since the CDN has no placeholder. */
 export const SKILL_ICON_PLACEHOLDER = `${base}/images/unknown-skill.png`;
 

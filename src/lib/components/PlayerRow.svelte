@@ -1,11 +1,14 @@
 <script lang="ts">
-  import { classIcon, withAlpha } from "$lib/constants";
+  import { withAlpha } from "$lib/constants";
   import { abbreviateNumber, abbreviateNumberSplit, formatPercent } from "$lib/format";
   import { type ColumnKey, settings } from "$lib/settings.svelte";
   import type { PlayerRow } from "$lib/viewer.svelte";
   import { untrack } from "svelte";
   import { cubicOut } from "svelte/easing";
   import { Tween } from "svelte/motion";
+
+  import PlayerName from "./PlayerName.svelte";
+  import Tooltip from "./Tooltip.svelte";
 
   /** A player's cells. The `<tr>` belongs to MeterTable, so it can animate reordering. */
   let { row, visibleColumns }: { row: PlayerRow; visibleColumns: ColumnKey[] } = $props();
@@ -23,6 +26,28 @@
 
   type Cell = { value: string; unit?: string; title?: string };
 
+  /** rCon% breakdown, as `rdpsContribTooltip` in the meter's DamageMeterColumns.svelte. */
+  function rdpsContribTooltip(): string {
+    const stats = row.entity.damageStats;
+    if (row.isSupport) {
+      return [
+        `The support contributed ${formatPercent(row.rdpsContribPercent)} damage to the party`,
+        `Given: ${abbreviateNumber(stats.rdpsDamageGiven)}`
+      ].join("\n");
+    }
+
+    const lines: string[] = [];
+    if (stats.rdpsDamageReceivedSupport > 0 && row.damage > 0) {
+      const dark = row.darkGrenadeDamageReceived;
+      const dps = stats.rdpsDamageReceived - stats.rdpsDamageReceivedSupport - dark;
+      lines.push(`Support Contribution: ${formatPercent((stats.rdpsDamageReceivedSupport / row.damage) * 100)}`);
+      if (dps > 0) lines.push(`DPS Contribution: ${formatPercent((dps / row.damage) * 100)}`);
+      if (dark > 0) lines.push(`Dark Contribution: ${formatPercent((dark / row.damage) * 100)}`);
+    }
+    lines.push(`Received: ${abbreviateNumber(stats.rdpsDamageReceived)}`);
+    return lines.join("\n");
+  }
+
   function amount(n: number, title?: string): Cell {
     const [value, unit] = abbreviateNumberSplit(n);
     return { value: String(value), unit, title: title ?? Math.round(n).toLocaleString() };
@@ -38,6 +63,8 @@
       case "deaths":
         return { value: row.deaths > 0 ? String(row.deaths) : "-" };
       case "incapacitated": {
+        // Sidereals can't be knocked down; the meter shows "-" and "N/A".
+        if (row.isSidereal) return { value: "-", title: "N/A" };
         const { total, knockDown, cc } = row.incapacitatedMs;
         return {
           value: `${(total / 1000).toFixed(1)}s`,
@@ -88,11 +115,8 @@
         }
         return { value: "-" };
       case "rdpsContrib":
-        if (row.rdpsContribDamage <= 0) return { value: "-" };
-        return {
-          value: formatPercent(row.rdpsContribPercent),
-          title: `${row.isSupport ? "Given" : "Received"}: ${abbreviateNumber(row.rdpsContribDamage)}`
-        };
+        if (row.rdpsContribDamage <= 0) return { value: "-", title: "N/A" };
+        return { value: formatPercent(row.rdpsContribPercent), title: rdpsContribTooltip() };
       case "crit":
         return { value: formatPercent(row.critPercent) };
       case "critDamage":
@@ -116,29 +140,21 @@
       case "stagger":
         return row.stagger > 0 ? amount(row.stagger) : { value: "-" };
       case "counters":
-        return { value: String(row.counters) };
+        return { value: row.isSidereal ? "-" : String(row.counters) };
     }
   }
 </script>
 
 <td class="max-w-0 pr-2 pl-1.5">
-  <div class="flex items-center gap-1.5">
-    <img class="size-5 shrink-0" src={classIcon(row.entity.classId)} alt={row.entity.class} title={row.entity.class} />
-    <span
-      class="truncate"
-      class:font-semibold={row.isLocalPlayer}
-      class:text-accent-400={row.isLocalPlayer}
-      title={row.name}
-    >
-      {row.name}
-    </span>
-  </div>
+  <PlayerName {row} />
 </td>
 
 {#each visibleColumns as column (column)}
   {@const c = cell(column)}
-  <td class="tabular w-14 px-1 text-right whitespace-nowrap" title={c.title}>
-    {c.value}{#if c.unit}<span class="text-xs opacity-70">{c.unit}</span>{/if}
+  <td class="tabular w-14 px-1 text-right whitespace-nowrap">
+    <Tooltip tooltip={c.title}>
+      {c.value}{#if c.unit}<span class="text-xs opacity-70">{c.unit}</span>{/if}
+    </Tooltip>
   </td>
 {/each}
 

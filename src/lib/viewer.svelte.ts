@@ -2,16 +2,21 @@ import {
   arcanistCardIds,
   BRAND_UNIQUE_GROUP,
   classColor,
+  classIcon,
   getBossHpBars,
   hyperAwakeningIds,
   IDENTITY_BRAND_SKILL_ID,
   identityBrandRows,
   identityBrandSourceIds,
   isSupportSpec,
+  LOA_BIBLE_URL,
+  SIDEREAL_COLOR,
+  siderealIcon,
   skillIcon
 } from "./constants";
-import { isNameValid, percent } from "./format";
+import { isNameValid, normalizeIlvl, percent } from "./format";
 import type { BossStatus, MeterStatus } from "./protocol";
+import { settings } from "./settings.svelte";
 import { type Encounter, type Entity, EntityType, type IncapacitatedEvent, type Skill } from "./types";
 
 /**
@@ -120,7 +125,33 @@ export class ViewerState {
     this.now = now;
   }
 
-  totalDamageDealt = $derived(this.encounter?.encounterDamageStats.totalDamageDealt ?? 0);
+  /**
+   * Damage dealt by sidereal (Esther) skills, damage descending; empty when they're hidden.
+   * `players` in the meter's `encounter.svelte.ts`, with showEsther.
+   */
+  siderealEntities = $derived.by(() => {
+    if (!this.encounter || !settings.showSidereals) return [] as Entity[];
+
+    return Object.values(this.encounter.entities)
+      .filter((e) => e.entityType === EntityType.ESTHER && e.damageStats.damageDealt > 0)
+      .sort((a, b) => b.damageStats.damageDealt - a.damageStats.damageDealt);
+  });
+
+  /** The encounter's damage, plus the sidereals' when they're shown, as the meter counts it. */
+  /** The host's region, for profile links; "CE" stands in for "EUC" as in the meter. */
+  region = $derived.by(() => {
+    const region = this.encounter?.encounterDamageStats.misc?.region ?? this.encounter?.region ?? "";
+    return region === "EUC" ? "CE" : region;
+  });
+
+  contributionSplitByName = $derived(
+    new Map((this.encounter?.encounterDamageStats.misc?.contributionSplits ?? []).map((split) => [split.name, split]))
+  );
+
+  totalDamageDealt = $derived(
+    (this.encounter?.encounterDamageStats.totalDamageDealt ?? 0) +
+      this.siderealEntities.reduce((sum, e) => sum + e.damageStats.damageDealt, 0)
+  );
 
   dps = $derived(this.durationSeconds > 0 ? this.totalDamageDealt / this.durationSeconds : 0);
 
@@ -142,11 +173,16 @@ export class ViewerState {
 
   #playerOrder = new StableOrder<string>();
 
-  /** Player rows in display order: damage descending, with near-ties held in place. */
+  /**
+   * Rows in display order: players and any shown sidereals, damage descending, with near-ties held
+   * in place. Sidereals mix into the list as in the live meter; the party split gives them a table.
+   */
   players = $derived(
     this.#playerOrder
       .arrange(
-        this.playerEntities,
+        [...this.playerEntities, ...this.siderealEntities].sort(
+          (a, b) => b.damageStats.damageDealt - a.damageStats.damageDealt
+        ),
         (e) => e.name,
         (e) => e.damageStats.damageDealt,
         this.fightStart
@@ -230,7 +266,8 @@ export class ViewerState {
 
   /**
    * Players grouped into parties, or a single flat group when party info hasn't arrived yet. `party`
-   * is the host's party index, or -1 for players it hasn't placed; it keys each group's table, so a
+   * is the host's party index, -1 for players it hasn't placed, or `SIDEREAL_PARTY` for the
+   * sidereals' table after the parties (as in the meter's log view). It keys each group's table, so a
    * group appearing or going doesn't shift the other tables' rows into different ones.
    */
   parties = $derived.by(() => {
@@ -239,7 +276,7 @@ export class ViewerState {
 
     const groups = new Map<number, PlayerRow[]>();
     for (const row of rows) {
-      const party = row.party ?? -1;
+      const party = row.isSidereal ? SIDEREAL_PARTY : (row.party ?? -1);
       const group = groups.get(party);
       if (group) group.push(row);
       else groups.set(party, [row]);
@@ -405,6 +442,9 @@ export class ViewerState {
   }
 }
 
+/** Group key for the sidereals' table in `ViewerState.parties`; sorts after every real party. */
+export const SIDEREAL_PARTY = Number.MAX_SAFE_INTEGER;
+
 /** How far ahead a row must get before it passes the one above it: 0.5% of that row's value. */
 const REORDER_MARGIN = 0.005;
 
@@ -458,10 +498,48 @@ export class PlayerRow {
     this.#viewer = viewer;
   }
 
-  /** The meter falls back to the class name when a name is a placeholder. */
+  /** Damage from a sidereal (Esther) skill rather than a player. */
+  get isSidereal(): boolean {
+    return this.entity.entityType === EntityType.ESTHER;
+  }
+
+  /**
+   * The displayed name, as `formatPlayerName` in the meter: the class name stands in for a
+   * placeholder name, the item level goes first when that's on, and a skull marks the dead.
+   * Sidereals keep their own name.
+   */
   get name(): string {
-    const base = isNameValid(this.entity.name) ? this.entity.name : this.entity.class || "Unknown";
-    return this.entity.isDead ? `💀 ${base}` : base;
+    if (this.isSidereal) return this.entity.name;
+    let name = isNameValid(this.entity.name) ? this.entity.name : this.entity.class || "Unknown";
+    if (settings.showItemLevel && this.entity.gearScore > 0) name = `${normalizeIlvl(this.entity.gearScore)} ${name}`;
+    return this.entity.isDead ? `💀 ${name}` : name;
+  }
+
+  /** The character's lostark.bible page, when the setting is on and the name and region are real. */
+  get profileUrl(): string | null {
+    const region = this.#viewer.region;
+    if (!settings.profileShortcut || this.isSidereal || !region || !isNameValid(this.entity.name)) return null;
+    return `${LOA_BIBLE_URL}/character/${encodeURIComponent(region)}/${encodeURIComponent(this.entity.name)}`;
+  }
+
+  /** The loadout snapshot the host resolved for this character, linked from the name tooltip. */
+  get loadoutUrl(): string | null {
+    return this.entity.loadoutHash ? `${LOA_BIBLE_URL}/character/snapshot/${this.entity.loadoutHash}` : null;
+  }
+
+  /** Received dark grenade contribution, when the frame carries contribution splits (saved logs do). */
+  get darkGrenadeDamageReceived(): number {
+    return this.#viewer.contributionSplitByName.get(this.entity.name)?.damageSplitByName["DarkGrenadeSynergy"] ?? 0;
+  }
+
+  /** Class icon, or the sidereal's own. */
+  get icon(): string {
+    return this.isSidereal ? siderealIcon(this.entity.name) : classIcon(this.entity.classId);
+  }
+
+  /** What the icon shows, for its tooltip. */
+  get iconLabel(): string {
+    return this.isSidereal ? this.entity.name : this.entity.class;
   }
 
   get key(): string {
@@ -473,7 +551,7 @@ export class PlayerRow {
   }
 
   get color(): string {
-    return classColor(this.entity.class);
+    return this.isSidereal ? SIDEREAL_COLOR : classColor(this.entity.class);
   }
 
   get damage(): number {

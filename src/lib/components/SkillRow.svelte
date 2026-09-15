@@ -7,6 +7,8 @@
   import { cubicOut } from "svelte/easing";
   import { Tween } from "svelte/motion";
 
+  import Tooltip from "./Tooltip.svelte";
+
   let { skill, color, visibleColumns }: { skill: SkillRow; color: string; visibleColumns: BreakdownColumnKey[] } =
     $props();
 
@@ -119,8 +121,10 @@
 
 {#each visibleColumns as column (column)}
   {@const c = cell(column)}
-  <td class="tabular w-14 px-1 text-right whitespace-nowrap" title={c.title}>
-    {c.value}{#if c.unit}<span class="text-xs opacity-70">{c.unit}</span>{/if}
+  <td class="tabular w-14 px-1 text-right whitespace-nowrap">
+    <Tooltip tooltip={c.title}>
+      {c.value}{#if c.unit}<span class="text-xs opacity-70">{c.unit}</span>{/if}
+    </Tooltip>
   </td>
 {/each}
 

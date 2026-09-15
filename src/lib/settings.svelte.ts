@@ -258,7 +258,13 @@ const defaults = {
     damageReduced: false
   } satisfies Record<BreakdownColumnKey, boolean>,
   splitParties: true,
-  classColorBars: true
+  classColorBars: true,
+  /** Damage dealt by sidereal (Esther) skills, as the meter's "Show Esther". On by default there too. */
+  showSidereals: true,
+  /** Item level before each name, as the meter's "Show Gear Score" (on by default there). */
+  showItemLevel: true,
+  /** A lostark.bible link beside each name, as the meter's "Profile Shortcut" (off by default there). */
+  profileShortcut: false
 };
 
 export type ViewerSettings = typeof defaults;
@@ -274,6 +280,9 @@ class Settings {
   breakdownColumns = $state({ ...defaults.breakdownColumns });
   splitParties = $state(defaults.splitParties);
   classColorBars = $state(defaults.classColorBars);
+  showSidereals = $state(defaults.showSidereals);
+  showItemLevel = $state(defaults.showItemLevel);
+  profileShortcut = $state(defaults.profileShortcut);
 
   constructor() {
     if (!browser) return;
@@ -286,6 +295,9 @@ class Settings {
         this.breakdownColumns = { ...defaults.breakdownColumns, ...parsed.breakdownColumns };
         this.splitParties = parsed.splitParties ?? defaults.splitParties;
         this.classColorBars = parsed.classColorBars ?? defaults.classColorBars;
+        this.showSidereals = parsed.showSidereals ?? defaults.showSidereals;
+        this.showItemLevel = parsed.showItemLevel ?? defaults.showItemLevel;
+        this.profileShortcut = parsed.profileShortcut ?? defaults.profileShortcut;
       }
     } catch {
       // Corrupt or unavailable storage is not worth failing the page over.
@@ -297,7 +309,10 @@ class Settings {
           columns: { ...this.columns },
           breakdownColumns: { ...this.breakdownColumns },
           splitParties: this.splitParties,
-          classColorBars: this.classColorBars
+          classColorBars: this.classColorBars,
+          showSidereals: this.showSidereals,
+          showItemLevel: this.showItemLevel,
+          profileShortcut: this.profileShortcut
         };
         try {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));

@@ -2,6 +2,7 @@ import {
   arcanistCardIds,
   BRAND_UNIQUE_GROUP,
   classColor,
+  getBossHpBars,
   hyperAwakeningIds,
   IDENTITY_BRAND_SKILL_ID,
   identityBrandRows,
@@ -205,19 +206,36 @@ export class ViewerState {
     };
   });
 
-  /** Party index by player name, for the party-split view. */
+  /** Party assignments seen so far this fight. Not reactive: it only carries names between updates. */
+  #partyMemory = { fightStart: 0, parties: new Map<string, number>() };
+
+  /**
+   * Party index by player name, for the party-split view.
+   *
+   * Sticky for the fight: the host builds its party list from the players the game currently has
+   * loaded, so someone can drop out of it for an update or two. Moving them to the unknown group and
+   * back would rebuild their row each time, blanking the bar. They keep their last known party until
+   * a list puts them somewhere else, or a new fight starts.
+   */
   partyByName = $derived.by(() => {
-    const map = new Map<string, number>();
+    if (this.#partyMemory.fightStart !== this.fightStart) {
+      this.#partyMemory = { fightStart: this.fightStart, parties: new Map() };
+    }
+    const known = this.#partyMemory.parties;
     this.partyInfo?.forEach((party, index) => {
-      for (const name of party) map.set(name, index);
+      for (const name of party) known.set(name, index);
     });
-    return map;
+    return new Map(known);
   });
 
-  /** Players grouped into parties, or a single flat group when party info hasn't arrived yet. */
+  /**
+   * Players grouped into parties, or a single flat group when party info hasn't arrived yet. `party`
+   * is the host's party index, or -1 for players it hasn't placed; it keys each group's table, so a
+   * group appearing or going doesn't shift the other tables' rows into different ones.
+   */
   parties = $derived.by(() => {
     const rows = this.players;
-    if (this.partyByName.size === 0) return [rows];
+    if (this.partyByName.size === 0) return [{ party: -1, rows }];
 
     const groups = new Map<number, PlayerRow[]>();
     for (const row of rows) {
@@ -227,8 +245,46 @@ export class ViewerState {
       else groups.set(party, [row]);
     }
 
-    return [...groups.entries()].sort(([a], [b]) => a - b).map(([, group]) => group);
+    return [...groups.entries()].sort(([a], [b]) => a - b).map(([party, group]) => ({ party, rows: group }));
   });
+
+  /** Last boss shown this fight, so a gap in the host's boss data doesn't blank the bar. Not reactive. */
+  #lastBoss: { fightStart: number; boss: BossStatus } | null = null;
+
+  /**
+   * The boss HP bar's data.
+   *
+   * bossStatus arrives at ~5 Hz and drives the animated bar; the encounter's own copy is the 1 Hz
+   * fallback that fills the gap for a viewer who joined between boss updates, or a host that isn't
+   * rendering its boss bar. The host can briefly send neither (its boss bar unmounts, or a snapshot
+   * lacks the boss), so within a fight the last known boss is held rather than removing the bar.
+   */
+  shownBoss = $derived.by((): BossStatus | null => {
+    const current = this.#liveBoss();
+    if (current) {
+      if (this.encounter) this.#lastBoss = { fightStart: this.fightStart, boss: current };
+      return current;
+    }
+    return this.encounter && this.#lastBoss?.fightStart === this.fightStart ? this.#lastBoss.boss : null;
+  });
+
+  #liveBoss(): BossStatus | null {
+    if (this.bossStatus) return this.bossStatus;
+
+    const fallback = this.boss;
+    if (!fallback) return null;
+
+    const totalBars = getBossHpBars(fallback);
+    return {
+      name: fallback.name,
+      isDead: fallback.isDead,
+      currentHp: fallback.currentHp,
+      maxHp: fallback.maxHp,
+      currentShield: fallback.currentShield,
+      totalBars,
+      currentBars: totalBars
+    };
+  }
 
   /**
    * The non-support players a support's contribution is measured against: their own party when
@@ -345,6 +401,7 @@ export class ViewerState {
     this.#selection = null;
     this.#lastRunningAt = null;
     this.#haltedAt = null;
+    this.#lastBoss = null;
   }
 }
 

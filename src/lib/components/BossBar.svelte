@@ -2,6 +2,7 @@
   import { bossHpBarColors, withAlpha } from "$lib/constants";
   import { abbreviateNumberSplit } from "$lib/format";
   import type { BossStatus } from "$lib/protocol";
+  import { untrack } from "svelte";
   import { linear } from "svelte/easing";
   import { Tween } from "svelte/motion";
 
@@ -30,17 +31,21 @@
   let shieldSplit = $derived(abbreviateNumberSplit(shield));
 
   // Fill of the *current* bar only, matching the meter.
-  const fill = new Tween(100, { duration: 200, easing: linear });
+  let fillTarget = $derived.by(() => {
+    if (boss.isDead || hp <= 0) return 0;
+    if (hp >= boss.maxHp) return 100;
+    const hpPerBar = boss.maxHp / totalBars;
+    return ((hp % hpPerBar) / hpPerBar) * 100;
+  });
+
+  // Starts where the boss is rather than full, so a remounted bar doesn't sweep down from 100%.
+  const fill = new Tween(
+    untrack(() => fillTarget),
+    { duration: 200, easing: linear }
+  );
 
   $effect(() => {
-    if (boss.isDead || hp <= 0) {
-      fill.set(0);
-    } else if (hp < boss.maxHp) {
-      const hpPerBar = boss.maxHp / totalBars;
-      fill.set(((hp % hpPerBar) / hpPerBar) * 100);
-    } else {
-      fill.set(100);
-    }
+    fill.set(fillTarget);
   });
 </script>
 

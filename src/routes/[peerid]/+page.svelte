@@ -6,7 +6,6 @@
   import MeterTable from "$lib/components/MeterTable.svelte";
   import SettingsPanel from "$lib/components/SettingsPanel.svelte";
   import SkillBreakdown from "$lib/components/SkillBreakdown.svelte";
-  import { getBossHpBars } from "$lib/constants";
   import { LiveConnection } from "$lib/peer.svelte";
   import { ViewerState } from "$lib/viewer.svelte";
   import { onMount } from "svelte";
@@ -56,25 +55,7 @@
   }
 
   let status = $derived(connection.status);
-  // bossStatus arrives at ~5 Hz and drives the animated bar; the encounter's own copy is the 1 Hz
-  // fallback that fills the gap for a viewer who joined between boss updates.
-  let boss = $derived.by(() => {
-    if (viewer.bossStatus) return viewer.bossStatus;
-
-    const fallback = viewer.boss;
-    if (!fallback) return null;
-
-    const totalBars = getBossHpBars(fallback);
-    return {
-      name: fallback.name,
-      isDead: fallback.isDead,
-      currentHp: fallback.currentHp,
-      maxHp: fallback.maxHp,
-      currentShield: fallback.currentShield,
-      totalBars,
-      currentBars: totalBars
-    };
-  });
+  let boss = $derived(viewer.shownBoss);
 </script>
 
 <!-- Back to the home page, to enter a different link when this one can't be reached. -->

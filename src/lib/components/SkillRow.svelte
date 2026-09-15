@@ -3,13 +3,18 @@
   import { abbreviateNumberSplit, formatPercent } from "$lib/format";
   import { type BreakdownColumnKey, settings } from "$lib/settings.svelte";
   import type { SkillRow } from "$lib/viewer.svelte";
+  import { untrack } from "svelte";
   import { cubicOut } from "svelte/easing";
   import { Tween } from "svelte/motion";
 
   let { skill, color, visibleColumns }: { skill: SkillRow; color: string; visibleColumns: BreakdownColumnKey[] } =
     $props();
 
-  const width = new Tween(0, { duration: 400, easing: cubicOut });
+  // Starts at the current width, as in PlayerRow.svelte.
+  const width = new Tween(
+    untrack(() => skill.barWidth),
+    { duration: 400, easing: cubicOut }
+  );
 
   $effect(() => {
     width.set(skill.barWidth);

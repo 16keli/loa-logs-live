@@ -3,13 +3,19 @@
   import { abbreviateNumber, abbreviateNumberSplit, formatPercent } from "$lib/format";
   import { type ColumnKey, settings } from "$lib/settings.svelte";
   import type { PlayerRow } from "$lib/viewer.svelte";
+  import { untrack } from "svelte";
   import { cubicOut } from "svelte/easing";
   import { Tween } from "svelte/motion";
 
   /** A player's cells. The `<tr>` belongs to MeterTable, so it can animate reordering. */
   let { row, visibleColumns }: { row: PlayerRow; visibleColumns: ColumnKey[] } = $props();
 
-  const width = new Tween(0, { duration: 400, easing: cubicOut });
+  // Starts at the current width rather than 0. A row that gets rebuilt (it changed table, or the view
+  // switched) would otherwise flash empty and regrow, which reads as the bar blanking out.
+  const width = new Tween(
+    untrack(() => row.barWidth),
+    { duration: 400, easing: cubicOut }
+  );
 
   $effect(() => {
     width.set(row.barWidth);

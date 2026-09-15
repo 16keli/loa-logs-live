@@ -45,14 +45,15 @@
     return (Object.keys(columnLabels) as ColumnKey[]).filter((c) => settings.columns[c] && hasData[c]);
   });
 
-  let groups = $derived(settings.splitParties ? viewer.parties : [viewer.players]);
+  let groups = $derived(settings.splitParties ? viewer.parties : [{ party: -1, rows: viewer.players }]);
 </script>
 
 {#if viewer.players.length === 0}
   <p class="p-6 text-center text-sm text-neutral-500">Waiting for combat data…</p>
 {:else}
   <div class="flex flex-col gap-3 p-1">
-    {#each groups as group, i (i)}
+    <!-- Keyed by party, so a group appearing or going doesn't move rows into another table. -->
+    {#each groups as group, i (group.party)}
       <!--
         In a fixed layout the name column only gets what the w-14 value columns leave, which is nothing
         once they outgrow the page (many columns, or a phone). The minimum width keeps it at 10rem and
@@ -81,7 +82,7 @@
           </tr>
         </thead>
         <tbody>
-          {#each group as row (row.key)}
+          {#each group.rows as row (row.key)}
             <!-- Rows slide to their new place when the order changes, as in the meter. -->
             <tr
               animate:flip={{ duration: 200 }}

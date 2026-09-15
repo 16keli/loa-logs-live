@@ -49,6 +49,22 @@ export function classColor(className: string): string {
   return classColors[className] ?? UNKNOWN_CLASS_COLOR;
 }
 
+/**
+ * A hex color at the given opacity, as plain `rgba()`.
+ *
+ * The meter writes `rgb(from <hex> r g b / <alpha>)` instead, which is fine in its WebView2, but that
+ * is relative color syntax: Safari before 18, Chrome before 119 and Firefox before 128 drop the whole
+ * declaration, so every bar goes transparent. The viewer runs in whatever browser a viewer has.
+ */
+export function withAlpha(hex: string, alpha: number): string {
+  const match = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex.trim());
+  if (!match) return hex;
+
+  const digits = match[1].length === 3 ? [...match[1]].map((d) => d + d).join("") : match[1];
+  const value = parseInt(digits, 16);
+  return `rgba(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255}, ${alpha})`;
+}
+
 /** Support specializations. From `SUPPORT_SPECS` in `src/lib/utils.ts`. */
 const SUPPORT_SPECS = ["Desperate Salvation", "Full Bloom", "Blessed Aura", "Liberator"];
 

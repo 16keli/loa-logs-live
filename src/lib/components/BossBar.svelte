@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { bossHpBarColors } from "$lib/constants";
+  import { bossHpBarColors, withAlpha } from "$lib/constants";
   import { abbreviateNumberSplit } from "$lib/format";
   import type { BossStatus } from "$lib/protocol";
   import { linear } from "svelte/easing";
@@ -51,11 +51,11 @@
     {:else}
       <div
         class="absolute inset-y-0 left-0 -z-10 transition-none"
-        style="background-color: rgb(from {barColor[0]} r g b / 0.8); width: {fill.current}%;"
+        style="background-color: {withAlpha(barColor[0], 0.8)}; width: {fill.current}%;"
       ></div>
       {#if totalBars > 1 && currentBars > 1}
         <!-- The bar underneath, revealed as the current one drains. -->
-        <div class="absolute inset-0 -z-20" style="background-color: rgb(from {barColor[1]} r g b / 0.8);"></div>
+        <div class="absolute inset-0 -z-20" style="background-color: {withAlpha(barColor[1], 0.8)};"></div>
       {/if}
     {/if}
   {/if}

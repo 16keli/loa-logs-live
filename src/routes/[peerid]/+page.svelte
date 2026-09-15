@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { base } from "$app/paths";
   import { page } from "$app/state";
   import BossBar from "$lib/components/BossBar.svelte";
   import EncounterHeader from "$lib/components/EncounterHeader.svelte";
@@ -76,6 +77,13 @@
   });
 </script>
 
+<!-- Back to the home page, to enter a different link when this one can't be reached. -->
+{#snippet homeLink()}
+  <a class="text-sm text-neutral-400 underline underline-offset-2 hover:text-neutral-100" href="{base}/">
+    Watch a different link
+  </a>
+{/snippet}
+
 <svelte:head>
   <title>{viewer.encounter?.currentBossName || "LOA Logs Live"}</title>
 </svelte:head>
@@ -128,6 +136,7 @@
         >
           Try again
         </button>
+        {@render homeLink()}
       {:else}
         <p class="font-medium">Disconnected.</p>
         <button
@@ -136,6 +145,7 @@
         >
           Reconnect
         </button>
+        {@render homeLink()}
       {/if}
     </div>
   {/if}

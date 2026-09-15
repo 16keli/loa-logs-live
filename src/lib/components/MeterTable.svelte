@@ -2,6 +2,7 @@
   import PlayerRowView from "$lib/components/PlayerRow.svelte";
   import { type ColumnKey, columnLabels, columnTooltips, settings } from "$lib/settings.svelte";
   import type { ViewerState } from "$lib/viewer.svelte";
+  import { flip } from "svelte/animate";
 
   let { viewer }: { viewer: ViewerState } = $props();
 
@@ -81,7 +82,22 @@
         </thead>
         <tbody>
           {#each group as row (row.key)}
-            <PlayerRowView {row} {visibleColumns} onselect={(selected) => viewer.selectPlayer(selected.entity.name)} />
+            <!-- Rows slide to their new place when the order changes, as in the meter. -->
+            <tr
+              animate:flip={{ duration: 200 }}
+              class="relative isolate h-7 cursor-pointer text-sm outline-accent-500 hover:bg-white/5 focus-visible:outline"
+              role="button"
+              tabindex="0"
+              aria-label="Show {row.name}'s skill breakdown"
+              onclick={() => viewer.selectPlayer(row.entity.name)}
+              onkeydown={(event) => {
+                if (event.key !== "Enter" && event.key !== " ") return;
+                event.preventDefault();
+                viewer.selectPlayer(row.entity.name);
+              }}
+            >
+              <PlayerRowView {row} {visibleColumns} />
+            </tr>
           {/each}
         </tbody>
       </table>

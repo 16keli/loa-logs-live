@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { SKILL_ICON_PLACEHOLDER } from "$lib/constants";
+  import { SKILL_ICON_PLACEHOLDER, withAlpha } from "$lib/constants";
   import { abbreviateNumberSplit, formatPercent } from "$lib/format";
   import { type BreakdownColumnKey, settings } from "$lib/settings.svelte";
   import type { SkillRow } from "$lib/viewer.svelte";
@@ -95,35 +95,32 @@
   }
 </script>
 
-<tr class="relative isolate h-7 text-sm">
-  <td class="max-w-0 pr-2 pl-1.5">
-    <div class="flex items-center gap-1.5">
-      <img
-        class="size-5 shrink-0"
-        src={skill.icon}
-        alt=""
-        onerror={(event) => {
-          // Game data names icons the CDN doesn't have; show the placeholder, not a broken image.
-          const img = event.currentTarget as HTMLImageElement;
-          if (!img.src.endsWith(SKILL_ICON_PLACEHOLDER)) img.src = SKILL_ICON_PLACEHOLDER;
-        }}
-      />
-      <span class="truncate" title={skill.name}>{skill.name}</span>
-    </div>
+<!-- A skill's cells. The `<tr>` belongs to SkillBreakdown, so it can animate reordering. -->
+<td class="max-w-0 pr-2 pl-1.5">
+  <div class="flex items-center gap-1.5">
+    <img
+      class="size-5 shrink-0"
+      src={skill.icon}
+      alt=""
+      onerror={(event) => {
+        // Game data names icons the CDN doesn't have; show the placeholder, not a broken image.
+        const img = event.currentTarget as HTMLImageElement;
+        if (!img.src.endsWith(SKILL_ICON_PLACEHOLDER)) img.src = SKILL_ICON_PLACEHOLDER;
+      }}
+    />
+    <span class="truncate" title={skill.name}>{skill.name}</span>
+  </div>
+</td>
+
+{#each visibleColumns as column (column)}
+  {@const c = cell(column)}
+  <td class="tabular w-14 px-1 text-right whitespace-nowrap" title={c.title}>
+    {c.value}{#if c.unit}<span class="text-xs opacity-70">{c.unit}</span>{/if}
   </td>
+{/each}
 
-  {#each visibleColumns as column (column)}
-    {@const c = cell(column)}
-    <td class="tabular w-14 px-1 text-right whitespace-nowrap" title={c.title}>
-      {c.value}{#if c.unit}<span class="text-xs opacity-70">{c.unit}</span>{/if}
-    </td>
-  {/each}
-
-  <!-- Skill bar; must stay the last cell, for the reason given in PlayerRow.svelte. -->
-  <td
-    class="absolute left-0 -z-10 h-7 rounded-r-xs"
-    style="background-color: rgb(from {settings.classColorBars
-      ? color
-      : '#525252'} r g b / 0.6); width: {width.current}%;"
-  ></td>
-</tr>
+<!-- Skill bar; must stay the last cell, for the reason given in PlayerRow.svelte. -->
+<td
+  class="absolute left-0 -z-10 h-7 rounded-r-xs"
+  style="background-color: {withAlpha(settings.classColorBars ? color : '#525252', 0.6)}; width: {width.current}%;"
+></td>

@@ -63,8 +63,30 @@ export class ViewerState {
     return !!status?.isDead && status.name === this.encounter?.currentBossName;
   });
 
-  /** The fight clock runs only while a raid is in progress and its boss is alive, as in the meter. */
-  clockRunning = $derived(this.meterStatus.raidInProgress && !this.bossDead);
+  /**
+   * Where the clock last stopped: the fight, and the last combat packet it had seen by then.
+   *
+   * A zone change (a restart vote teleporting the party, leaving the raid) stops the meter's clock
+   * but turns `raidInProgress` back on six seconds later so the next pull is caught, while the meter
+   * keeps showing the finished fight. Without this the viewer's clock would pick that old fight back
+   * up and count forever.
+   */
+  #haltedAt = $state.raw<{ fightStart: number; lastCombatPacket: number } | null>(null);
+
+  /**
+   * The fight clock runs while a raid is in progress and its boss is alive, as in the meter, and
+   * once stopped it stays stopped until the fight shows new combat. A new pull has a new fightStart,
+   * so it starts clean.
+   */
+  clockRunning = $derived.by(() => {
+    if (!this.meterStatus.raidInProgress || this.bossDead) return false;
+    const halted = this.#haltedAt;
+    return !(
+      halted &&
+      halted.fightStart === this.fightStart &&
+      (this.encounter?.lastCombatPacket ?? 0) <= halted.lastCombatPacket
+    );
+  });
 
   /**
    * Time since the pull. While the clock runs it follows the wall clock; once it stops (boss
@@ -86,7 +108,14 @@ export class ViewerState {
 
   /** Advance the local clock; called once a second. */
   tick(now = Date.now()) {
-    if (this.clockRunning && this.fightStart) this.#lastRunningAt = { fightStart: this.fightStart, at: now };
+    if (this.fightStart && this.encounter) {
+      if (this.clockRunning) {
+        this.#lastRunningAt = { fightStart: this.fightStart, at: now };
+      } else if (this.#lastRunningAt?.fightStart === this.fightStart) {
+        // It ran during this fight and has now stopped: hold it there until combat moves on.
+        this.#haltedAt = { fightStart: this.fightStart, lastCombatPacket: this.encounter.lastCombatPacket };
+      }
+    }
     this.now = now;
   }
 
@@ -110,7 +139,32 @@ export class ViewerState {
 
   topDamage = $derived(this.playerEntities[0]?.damageStats.damageDealt ?? 0);
 
-  players = $derived(this.playerEntities.map((entity) => new PlayerRow(entity, this)));
+  #playerOrder = new StableOrder<string>();
+
+  /** Player rows in display order: damage descending, with near-ties held in place. */
+  players = $derived(
+    this.#playerOrder
+      .arrange(
+        this.playerEntities,
+        (e) => e.name,
+        (e) => e.damageStats.damageDealt,
+        this.fightStart
+      )
+      .map((entity) => new PlayerRow(entity, this))
+  );
+
+  #skillOrder = new StableOrder<number>();
+
+  /** A breakdown's skills in display order, descending by `sort`, with near-ties held in place. */
+  orderSkills(player: string, sort: SkillSort, skills: Skill[]): Skill[] {
+    const context = `${this.fightStart}:${player}:${sort}`;
+    return this.#skillOrder.arrange(
+      skills,
+      (skill) => skill.id,
+      (skill) => skillSortValue(skill, sort),
+      context
+    );
+  }
 
   /** Players whose skills contributed buff damage to others: the meter's definition of a support. */
   supportNames = $derived.by(() => {
@@ -290,6 +344,51 @@ export class ViewerState {
     this.meterStatus = { raidInProgress: false };
     this.#selection = null;
     this.#lastRunningAt = null;
+    this.#haltedAt = null;
+  }
+}
+
+/** How far ahead a row must get before it passes the one above it: 0.5% of that row's value. */
+const REORDER_MARGIN = 0.005;
+
+/**
+ * Remembers the order a list was last shown in, so near-ties don't trade places on every frame.
+ *
+ * The host sends a frame a second, and two players or skills within a hair of each other would
+ * otherwise swap rows back and forth each time, which reads as flicker. Neighbours only swap once the
+ * lower one leads by `REORDER_MARGIN`. Not reactive: it only carries the last result between frames.
+ */
+class StableOrder<K> {
+  #context: unknown;
+  #keys: K[] = [];
+
+  /**
+   * `items` descending by `value`, except that near-ties keep the order they were last shown in.
+   * A different `context` (a new fight, another player, another sort) starts from a plain sort.
+   */
+  arrange<T>(items: T[], key: (item: T) => K, value: (item: T) => number, context: unknown): T[] {
+    const byKey = new Map(items.map((item) => [key(item), item]));
+    const previous = context === this.#context ? this.#keys.filter((k) => byKey.has(k)) : [];
+    const shown = new Set(previous);
+    const added = items.filter((item) => !shown.has(key(item))).sort((a, b) => value(b) - value(a));
+    const order = [...previous.map((k) => byKey.get(k)!), ...added];
+
+    // Swap neighbours only on a clear lead. Each swap removes an inversion, so the passes end.
+    for (let swapped = true; swapped; ) {
+      swapped = false;
+      for (let i = 0; i + 1 < order.length; i++) {
+        const upper = value(order[i]);
+        const lower = value(order[i + 1]);
+        if (lower - upper > Math.abs(upper) * REORDER_MARGIN) {
+          [order[i], order[i + 1]] = [order[i + 1], order[i]];
+          swapped = true;
+        }
+      }
+    }
+
+    this.#context = context;
+    this.#keys = order.map(key);
+    return order;
   }
 }
 
@@ -608,8 +707,9 @@ export class PlayerRow {
     const sort = this.skillSort;
     const source = this.breakdownSkills;
     if (this.#skills?.sort !== sort || this.#skills.source !== source) {
-      const skills = [...source].sort((a, b) => skillSortValue(b, sort) - skillSortValue(a, sort));
-      const top = skills[0] ? skillSortValue(skills[0], sort) : 0;
+      const skills = this.#viewer.orderSkills(this.entity.name, sort, source);
+      // The top value rather than the first row's: a held near-tie can put a slightly smaller one first.
+      const top = Math.max(0, ...skills.map((skill) => skillSortValue(skill, sort)));
       this.#skills = {
         sort,
         source,

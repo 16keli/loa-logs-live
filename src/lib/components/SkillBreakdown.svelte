@@ -1,6 +1,6 @@
 <script lang="ts">
   import SkillRowView from "$lib/components/SkillRow.svelte";
-  import { classIcon } from "$lib/constants";
+  import { classIcon, withAlpha } from "$lib/constants";
   import { abbreviateNumberSplit, formatPercent } from "$lib/format";
   import {
     type BreakdownColumnKey,
@@ -9,6 +9,7 @@
     settings
   } from "$lib/settings.svelte";
   import type { PlayerRow, SkillSort } from "$lib/viewer.svelte";
+  import { flip } from "svelte/animate";
 
   let { row, onback, onsort }: { row: PlayerRow; onback: () => void; onsort: (sort: SkillSort) => void } = $props();
 
@@ -187,7 +188,7 @@
           {#if sort}
             <th
               class="w-14 px-1 text-right font-medium"
-              style={row.skillSort === sort ? `background-color: rgb(from ${row.color} r g b / 0.1)` : ""}
+              style={row.skillSort === sort ? `background-color: ${withAlpha(row.color, 0.1)}` : ""}
               title={breakdownColumnTooltips[column]}
               aria-sort={row.skillSort === sort ? "descending" : "none"}
             >
@@ -234,12 +235,15 @@
 
         <td
           class="absolute left-0 -z-10 h-7 w-full"
-          style="background-color: rgb(from {settings.classColorBars ? row.color : '#525252'} r g b / 0.6);"
+          style="background-color: {withAlpha(settings.classColorBars ? row.color : '#525252', 0.6)};"
         ></td>
       </tr>
 
       {#each row.skills as skill (skill.key)}
-        <SkillRowView {skill} color={row.color} {visibleColumns} />
+        <!-- Rows slide to their new place when the order changes, as in the meter. -->
+        <tr animate:flip={{ duration: 200 }} class="relative isolate h-7 text-sm">
+          <SkillRowView {skill} color={row.color} {visibleColumns} />
+        </tr>
       {/each}
     </tbody>
   </table>

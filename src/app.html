@@ -5,6 +5,20 @@
     <link rel="icon" href="%sveltekit.assets%/favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="dark" />
+    <!-- Already dark: ask Dark Reader not to theme the page. -->
+    <meta name="darkreader-lock" />
+    <script>
+      // Dark Reader still injects its placeholder sheet, which paints every element's background dark
+      // with !important and is left behind on this page. It sits on top of the damage and boss bars,
+      // so remove it whenever it appears. Only direct children of <head> and <html> are watched.
+      (() => {
+        const strip = () => document.querySelectorAll("style.darkreader--fallback").forEach((s) => s.remove());
+        const observer = new MutationObserver(strip);
+        observer.observe(document.documentElement, { childList: true });
+        observer.observe(document.head, { childList: true });
+        strip();
+      })();
+    </script>
     %sveltekit.head%
   </head>
   <body data-sveltekit-preload-data="hover" class="bg-neutral-950 text-neutral-100">

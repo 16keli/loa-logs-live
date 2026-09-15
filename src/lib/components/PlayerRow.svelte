@@ -146,8 +146,11 @@
   Damage bar, behind the row content: an absolutely positioned cell, as in the meter. It must stay
   last. Chromium still gives it a column slot, so anywhere earlier it shifts every cell after it one
   column right of its header.
+  The color is `!important` because Dark Reader's fallback sheet paints every element's background
+  with `!important`, which blanks the bars; only an important inline declaration outranks it.
 -->
 <td
   class="absolute left-0 -z-10 h-7 rounded-r-xs"
-  style="background-color: {withAlpha(settings.classColorBars ? row.color : '#525252', 0.6)}; width: {width.current}%;"
+  style:background-color|important={withAlpha(settings.classColorBars ? row.color : "#525252", 0.6)}
+  style:width="{width.current}%"
 ></td>

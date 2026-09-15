@@ -124,8 +124,9 @@
   </td>
 {/each}
 
-<!-- Skill bar; must stay the last cell, for the reason given in PlayerRow.svelte. -->
+<!-- Skill bar; must stay the last cell, and its color is important, for the reasons in PlayerRow.svelte. -->
 <td
   class="absolute left-0 -z-10 h-7 rounded-r-xs"
-  style="background-color: {withAlpha(settings.classColorBars ? color : '#525252', 0.6)}; width: {width.current}%;"
+  style:background-color|important={withAlpha(settings.classColorBars ? color : "#525252", 0.6)}
+  style:width="{width.current}%"
 ></td>

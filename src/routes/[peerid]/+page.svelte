@@ -1,6 +1,6 @@
 <script lang="ts">
   import { base } from "$app/paths";
-  import { page } from "$app/state";
+  import { page, updated } from "$app/state";
   import BossBar from "$lib/components/BossBar.svelte";
   import EncounterHeader from "$lib/components/EncounterHeader.svelte";
   import MeterTable from "$lib/components/MeterTable.svelte";
@@ -56,6 +56,16 @@
 
   let status = $derived(connection.status);
   let boss = $derived(viewer.shownBoss);
+
+  // Reload onto a new deploy, but not in the middle of a pull: wait until the fight's clock stops (or
+  // there is no fight, or the tab is hidden). The reload reconnects to the same host, which sends the
+  // current encounter to every new connection, so nothing is lost; settings live in localStorage.
+  let hidden = $state(false);
+  $effect(() => {
+    if (!updated.current) return;
+    if (viewer.clockRunning && status === "connected" && !hidden) return;
+    location.reload();
+  });
 </script>
 
 <!-- Back to the home page, to enter a different link when this one can't be reached. -->
@@ -64,6 +74,8 @@
     Watch a different link
   </a>
 {/snippet}
+
+<svelte:document onvisibilitychange={() => (hidden = document.visibilityState === "hidden")} />
 
 <svelte:head>
   <title>{viewer.encounter?.currentBossName || "LOA Logs Live"}</title>

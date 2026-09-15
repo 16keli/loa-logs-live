@@ -188,7 +188,7 @@
           {#if sort}
             <th
               class="w-14 px-1 text-right font-medium"
-              style={row.skillSort === sort ? `background-color: ${withAlpha(row.color, 0.1)}` : ""}
+              style:background-color|important={row.skillSort === sort ? withAlpha(row.color, 0.1) : undefined}
               title={breakdownColumnTooltips[column]}
               aria-sort={row.skillSort === sort ? "descending" : "none"}
             >
@@ -235,7 +235,7 @@
 
         <td
           class="absolute left-0 -z-10 h-7 w-full"
-          style="background-color: {withAlpha(settings.classColorBars ? row.color : '#525252', 0.6)};"
+          style:background-color|important={withAlpha(settings.classColorBars ? row.color : "#525252", 0.6)}
         ></td>
       </tr>
 

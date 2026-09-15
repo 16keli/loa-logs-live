@@ -52,15 +52,17 @@
 <div class="relative isolate flex h-8 items-center border-y border-black bg-neutral-900/70 select-none">
   {#if hp > 0}
     {#if shield > 0}
-      <div class="absolute inset-0 -z-10 bg-neutral-400/95"></div>
+      <!-- Colors are important inline so Dark Reader can't blank them; see PlayerRow.svelte. -->
+      <div class="absolute inset-0 -z-10" style:background-color|important="rgba(163, 163, 163, 0.95)"></div>
     {:else}
       <div
         class="absolute inset-y-0 left-0 -z-10 transition-none"
-        style="background-color: {withAlpha(barColor[0], 0.8)}; width: {fill.current}%;"
+        style:background-color|important={withAlpha(barColor[0], 0.8)}
+        style:width="{fill.current}%"
       ></div>
       {#if totalBars > 1 && currentBars > 1}
         <!-- The bar underneath, revealed as the current one drains. -->
-        <div class="absolute inset-0 -z-20" style="background-color: {withAlpha(barColor[1], 0.8)};"></div>
+        <div class="absolute inset-0 -z-20" style:background-color|important={withAlpha(barColor[1], 0.8)}></div>
       {/if}
     {/if}
   {/if}

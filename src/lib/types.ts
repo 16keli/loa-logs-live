@@ -17,7 +17,9 @@ export enum EntityType {
   PLAYER = "PLAYER",
   NPC = "NPC",
   ESTHER = "ESTHER",
-  DARK_GRENADE = "DARK_GRENADE"
+  NPC_BONUS = "NPC_BONUS",
+  DARK_GRENADE = "DARK_GRENADE",
+  ATROPINE = "ATROPINE"
 }
 
 export interface Encounter {
@@ -136,6 +138,10 @@ export interface DamageStats {
   dps: number;
   rdpsDamageReceived: number;
   rdpsDamageReceivedSupport: number;
+  /** Sent by hosts from v1.50.0 on. */
+  rdpsDamageReceivedNpc?: number;
+  /** Sent by hosts from v1.50.0 on. */
+  rdpsDamageReceivedAtropine?: number;
   rdpsDamageGiven: number;
   incapacitations?: IncapacitatedEvent[];
   stagger: number;

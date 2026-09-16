@@ -23,7 +23,7 @@ const specByNode: Record<number, string> = {
   2230100: "Shock Training",
   2220000: "First Intention",
   2220100: "Esoteric Skill Enhancement",
-  2240000: "Energy Overflow",
+  2240000: "Supreme Art",
   2240100: "Robust Spirit",
   2340000: "Control",
   2340100: "Pinnacle",
@@ -63,6 +63,8 @@ const specByNode: Record<number, string> = {
   2310600: "Recurrence",
   2330000: "Ferality",
   2330100: "Phantom Beast Awakening",
+  220500000: "Time Wielder",
+  220500100: "Space Wielder",
   2490000: "Hellfire Successor",
   2490100: "Dreadful Roar"
 };

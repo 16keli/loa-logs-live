@@ -209,16 +209,16 @@ export const arkPassiveNodes: Record<number, [string, number]> = {
   "2235700": ["Final Explosion", 1],
   "2235800": ["Shock Explosion", 1],
   "2235900": ["Concise Strike", 1],
-  "2240000": ["Energy Overflow I", 0],
+  "2240000": ["Supreme Art", 0],
   "2240100": ["Robust Spirit", 0],
-  "2240200": ["Energy Forbiddance", 1],
-  "2240300": ["Energy Activation", 1],
-  "2240400": ["Natural Body", 2],
-  "2240500": ["Energy Overflow II", 2],
+  "2240200": ["Supreme Esoterica", 1],
+  "2240300": ["Maximize Energy", 1],
+  "2240400": ["Primordial Energy", 2],
+  "2240500": ["Blooming Convergence", 2],
   "2240600": ["Hype Enhancement", 2],
   "2240700": ["Keen Force", 2],
-  "2240800": ["Energy Practice", 3],
-  "2240900": ["Energy Explosion", 3],
+  "2240800": ["Core Mastery", 3],
+  "2240900": ["Quintuple Equilibrium", 3],
   "2241000": ["Limit Break", 3],
   "2241100": ["Recoil Control", 3],
   "2245000": ["Transcendent Power", 0],
@@ -235,8 +235,8 @@ export const arkPassiveNodes: Record<number, [string, number]> = {
   "2250100": ["Orb Compression", 1],
   "2250200": ["Orb Control", 2],
   "2250300": ["Limit Break", 2],
-  "2250400": ["Locked In", 3],
-  "2250500": ["Sword Spirit Compression", 3],
+  "2250400": ["Chaos Infusion", 3],
+  "2250500": ["Chaos Strength", 3],
   "2250600": ["Swift Strike", 0],
   "2250700": ["Remaining Energy", 1],
   "2250800": ["Firm Will", 2],
@@ -526,11 +526,11 @@ export const arkPassiveNodes: Record<number, [string, number]> = {
   "2380400": ["Secret Bullet", 2],
   "2380500": ["Peacemaker: Rifle", 2],
   "2380600": ["Rifle Expertise", 2],
-  "2380700": ["Vital Point Expert", 2],
+  "2380700": ["Sniper's Will", 2],
   "2380800": ["Gun Replacement Skill", 3],
   "2380900": ["Pacifist", 3],
   "2381000": ["Dead Center", 3],
-  "2381100": ["Sniper's Will", 3],
+  "2381100": ["Vital Point Expert", 3],
   "2385000": ["Transcendent Power", 0],
   "2385100": ["Charged Fury", 0],
   "2385200": ["Awakening Amplifier", 0],
@@ -674,7 +674,29 @@ export const arkPassiveNodes: Record<number, [string, number]> = {
   "2495600": ["Focused Blow", 1],
   "2495700": ["Ancestral Might", 1],
   "2495800": ["Orbital Collision", 1],
-  "2495900": ["Grand Descent", 1]
+  "2495900": ["Grand Descent", 1],
+  "220500000": ["Time Wielder", 0],
+  "220500100": ["Space Wielder", 0],
+  "220500200": ["Singularity", 1],
+  "220500300": ["Minute Hand Enhancement", 1],
+  "220500400": ["On the Hour", 2],
+  "220500500": ["Acceleration Enhancement", 2],
+  "220500600": ["Spatial Dominance", 2],
+  "220500700": ["Weak Point Destruction", 2],
+  "220500800": ["Hidden Enhancement", 3],
+  "220500900": ["Timeline Collapse", 3],
+  "220501000": ["Dimensional Destruction", 3],
+  "220501100": ["High-Speed Entry", 3],
+  "220510000": ["Transcendent Power", 0],
+  "220510100": ["Charged Fury", 0],
+  "220510200": ["Awakening Amplifier", 0],
+  "220510300": ["Unleashed Power", 0],
+  "220510400": ["Release Potential", 0],
+  "220510500": ["Instant Spell", 0],
+  "220510600": ["Time Warp", 1],
+  "220510700": ["Quantum Prison", 1],
+  "220510800": ["Dimensional Annihilator", 1],
+  "220510900": ["Dimensional Swordcraft", 1]
 };
 
 /** Ark Passive node that unlocks a class's Order cores -> core names by core type [sun, moon, star]. */
@@ -760,18 +782,18 @@ export const arkGridOrderNames: Record<number, [string[], string[], string[]]> =
     ["Orb Explosion", "Ground Smasher", "Counter Burst"]
   ],
   "2240900": [
-    ["Meridian Surge", "Grand Cycle", "Bare Knuckle"],
-    ["Circulating Melody", "Internal Flow", "Instant Step"],
-    ["Wallbreaker", "Energy Blow-Up", "Twin Strike Barrage"]
+    ["Shadowless", "Supreme Connection", "Force Cycle"],
+    ["True Rising Fist", "Divine Extermination", "Protective Cycle"],
+    ["Annihilating Void", "Shadowsweep", "Yin Yang Technique"]
   ],
   "2241000": [
-    ["Bolstering Melody", "Current Shot", "Onslaught"],
-    ["Adamantine Body", "Wavebreak Herald", "Heavenshaker"],
-    ["Dance of Heavenly Flowers", "Culminating Blast", "Palm Burst Renewal"]
+    ["Sky Shattering Strike", "Brilliant Rush", "Hundred Chain Strike"],
+    ["Chain Annihilation", "Heavenly Squall", "Recovery Bullet"],
+    ["Blinding Obliteration", "Piercing Spiral", "Energy Burst"]
   ],
   "2250500": [
-    ["Deathblade Surge", "Sword Reset", "Deathblade Rush"],
-    ["Surge Core", "Destiny Core", "Death Blitz"],
+    ["Deathblade Surge", "Slaughter Spectacle", "Deathblade Rush"],
+    ["Surge Core", "Twin Swords Dance", "Death Blitz"],
     ["Strike", "Swift Resolution", "Frostfire Blade"]
   ],
   "2251000": [
@@ -780,8 +802,8 @@ export const arkGridOrderNames: Record<number, [string[], string[], string[]]> =
     ["Basics", "Downtime", "Death Sword Energy"]
   ],
   "2260500": [
-    ["Moonscent", "Lunar Nightmare", "The Two Moons"],
-    ["Persona", "Nightmare", "Double Core"],
+    ["Moonscent", "Falling Moon", "The Two Moons"],
+    ["Persona", "Silent", "Double Core"],
     ["Delusory Sights", "Assassin's Shadow", "Death Loop"]
   ],
   "2261000": [
@@ -802,7 +824,7 @@ export const arkGridOrderNames: Record<number, [string[], string[], string[]]> =
   "2280900": [
     ["TA-09 Piercing Arrow", "ATB-07 Piercing Rain", "TA-12 Bursting Arrow"],
     ["HSU-98 Avian Strike", "HSU-21 Silver Rain", "HSU-13 Special High Explosive"],
-    ["HSU-04 Smart Scope", "HSU-17 Electric Nova", "HSU-31 Blast"]
+    ["HSU-04 Smart Scope", "HSU-17 Electric Nova", "HSU-36 Dot Sight"]
   ],
   "2281000": [
     ["ATB-03 Bolt Raptor", "TA-64 Reaper Bolt", "ATB-19 Rapidfire"],
@@ -968,5 +990,15 @@ export const arkGridOrderNames: Record<number, [string[], string[], string[]]> =
     ["Charge Enhancement", "Brandish", "Apex"],
     ["Overwhelm", "Flourish", "Dominant"],
     ["Grand Finale", "Army of One", "Destruction"]
+  ],
+  "220500900": [
+    ["Timekeeper", "Twisted Timeline", "Dimensional Annihilation"],
+    ["Combine Weapon", "Timeline", "Minute Tempo"],
+    ["Fusion Enhancement", "Distortion", "Conversion"]
+  ],
+  "220501000": [
+    ["Spatial Swordcraft", "Master Impaler", "Severed Dimension"],
+    ["Swordcraft Enhancement", "Point Attack", "Precise Control"],
+    ["Minute Hand Calibration", "Chain Thrust", "Multislash"]
   ]
 };

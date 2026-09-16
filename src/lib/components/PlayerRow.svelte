@@ -37,12 +37,18 @@
     }
 
     const lines: string[] = [];
-    if (stats.rdpsDamageReceivedSupport > 0 && row.damage > 0) {
+    if (row.damage > 0) {
       const dark = row.darkGrenadeDamageReceived;
-      const dps = stats.rdpsDamageReceived - stats.rdpsDamageReceivedSupport - dark;
-      lines.push(`Support Contribution: ${formatPercent((stats.rdpsDamageReceivedSupport / row.damage) * 100)}`);
-      if (dps > 0) lines.push(`DPS Contribution: ${formatPercent((dps / row.damage) * 100)}`);
-      if (dark > 0) lines.push(`Dark Contribution: ${formatPercent((dark / row.damage) * 100)}`);
+      const npc = stats.rdpsDamageReceivedNpc ?? 0;
+      const atropine = stats.rdpsDamageReceivedAtropine ?? 0;
+      const dps = stats.rdpsDamageReceived - stats.rdpsDamageReceivedSupport - npc - dark - atropine;
+      const share = (n: number) => formatPercent((n / row.damage) * 100);
+      if (stats.rdpsDamageReceivedSupport > 0)
+        lines.push(`Support Contribution: ${share(stats.rdpsDamageReceivedSupport)}`);
+      if (dps > 0) lines.push(`DPS Contribution: ${share(dps)}`);
+      if (dark > 0) lines.push(`Dark Contribution: ${share(dark)}`);
+      if (atropine > 0) lines.push(`Atropine Contribution: ${share(atropine)}`);
+      if (npc > 0) lines.push(`NPC Contribution: ${share(npc)}`);
     }
     lines.push(`Received: ${abbreviateNumber(stats.rdpsDamageReceived)}`);
     return lines.join("\n");

@@ -14,7 +14,7 @@ import {
   siderealIcon,
   skillIcon
 } from "./constants";
-import { isNameValid, normalizeIlvl, percent } from "./format";
+import { isNameValid, normalizeIlvl, percent, timestampToMinutesAndSeconds } from "./format";
 import type { BossStatus, MeterStatus } from "./protocol";
 import { settings } from "./settings.svelte";
 import { type Encounter, type Entity, EntityType, type IncapacitatedEvent, type Skill } from "./types";
@@ -48,6 +48,9 @@ export class ViewerState {
   bossStatus = $state.raw<BossStatus | null>(null);
   partyInfo = $state.raw<string[][] | null>(null);
   meterStatus = $state.raw<MeterStatus>({ raidInProgress: false });
+
+  /** Viewers watching this host, as the host counts them; null until it says. */
+  viewerCount = $state.raw<number | null>(null);
 
   /** Local wall clock, advanced once a second by `tick` so the duration moves between frames. */
   now = $state(Date.now());
@@ -324,6 +327,27 @@ export class ViewerState {
   }
 
   /**
+   * How long the boss would take to die at the damage the living players have averaged so far, as
+   * `timeToKill` in the meter's `encounter.svelte.ts`: `mm:ss`, or "∞" beyond an hour.
+   *
+   * Null when it means nothing: no boss, a dead boss, a stopped clock, or nobody dealing damage.
+   */
+  timeToKill = $derived.by((): string | null => {
+    const boss = this.shownBoss;
+    if (!boss || boss.isDead || !this.clockRunning || this.duration <= 0) return null;
+
+    const damagePerMs =
+      this.playerEntities
+        .filter((e) => !e.isDead && e.damageStats.damageDealt > 0)
+        .reduce((sum, e) => sum + e.damageStats.damageDealt, 0) / this.duration;
+    if (damagePerMs <= 0) return null;
+
+    const remaining = Math.max(0, boss.currentHp) + boss.currentShield;
+    const millis = Math.max(remaining / damagePerMs, 0);
+    return millis > 3.6e6 ? "∞" : timestampToMinutesAndSeconds(millis);
+  });
+
+  /**
    * The non-support players a support's contribution is measured against: their own party when
    * party info is known, otherwise everyone. `getContributionScopeDpsPlayers` in the meter.
    */
@@ -439,6 +463,7 @@ export class ViewerState {
     this.#lastRunningAt = null;
     this.#haltedAt = null;
     this.#lastBoss = null;
+    this.viewerCount = null;
   }
 }
 

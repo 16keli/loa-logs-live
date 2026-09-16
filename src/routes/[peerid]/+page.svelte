@@ -34,7 +34,6 @@
   });
 
   function reconnect() {
-    viewer.clear();
     connection.connect();
   }
 
@@ -56,6 +55,9 @@
 
   let status = $derived(connection.status);
   let boss = $derived(viewer.shownBoss);
+  // The meter stays up through a reconnect once there is something to show, so a dropped connection
+  // during a pull does not wipe the numbers off the screen.
+  let showMeter = $derived(status === "connected" || (status === "reconnecting" && viewer.encounter !== null));
 
   // Reload onto a new deploy, but not in the middle of a pull: wait until the fight's clock stops (or
   // there is no fight, or the tab is hidden). The reload reconnects to the same host, which sends the
@@ -82,7 +84,16 @@
 </svelte:head>
 
 <main class="mx-auto flex h-dvh max-w-4xl flex-col">
-  {#if status === "connected"}
+  {#if showMeter}
+    {#if status === "reconnecting"}
+      <!-- Reconnecting with the last frame still on screen. -->
+      <div class="flex h-6 shrink-0 items-center justify-center gap-2 bg-amber-900/60 text-xs text-amber-100">
+        <span class="size-1.5 animate-pulse rounded-full bg-amber-400"></span>
+        Reconnecting…
+        <button class="underline underline-offset-2 hover:text-white" onclick={reconnect}>Retry now</button>
+      </div>
+    {/if}
+
     {#if boss}
       <BossBar {boss} />
     {/if}
@@ -110,33 +121,38 @@
     <footer class="flex h-8 shrink-0 items-center gap-3 border-t border-neutral-800 px-3 text-xs text-neutral-500">
       <span class="truncate">Watching {peerId}</span>
       <span class="flex-1"></span>
+      {#if viewer.viewerCount !== null}
+        <!-- Counted by the host, so everyone watching sees the same number. -->
+        <span class="shrink-0" title="Viewers connected to this host">
+          {viewer.viewerCount}
+          {viewer.viewerCount === 1 ? "viewer" : "viewers"}
+        </span>
+      {/if}
       <SettingsPanel />
     </footer>
   {:else}
     <div class="flex flex-1 flex-col items-center justify-center gap-4 p-6 text-center">
       {#if status === "connecting"}
         <p class="animate-pulse text-neutral-400">Connecting…</p>
-      {:else if status === "error"}
+      {:else}
         <div>
-          <p class="font-medium">Couldn't connect.</p>
+          <p class="font-medium">
+            {status === "reconnecting" ? "Reconnecting…" : "Couldn't connect."}
+          </p>
           <p class="mt-1 text-sm text-neutral-400">
             {connection.error ?? "The host may have stopped sharing."}
           </p>
+          {#if connection.attempts > 1}
+            <p class="mt-1 text-xs text-neutral-500">
+              {connection.attempts} attempts so far. Keeps trying while this page is open.
+            </p>
+          {/if}
         </div>
         <button
           class="rounded bg-accent-600 px-4 py-2 text-sm font-medium text-white hover:bg-accent-500"
           onclick={reconnect}
         >
-          Try again
-        </button>
-        {@render homeLink()}
-      {:else}
-        <p class="font-medium">Disconnected.</p>
-        <button
-          class="rounded bg-accent-600 px-4 py-2 text-sm font-medium text-white hover:bg-accent-500"
-          onclick={reconnect}
-        >
-          Reconnect
+          Try again now
         </button>
         {@render homeLink()}
       {/if}

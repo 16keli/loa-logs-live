@@ -26,6 +26,9 @@
     bossHpBarColors[(currentBars - 1 + bossHpBarColors.length) % bossHpBarColors.length]
   ]);
 
+  /** Share of the boss's total health left, as the meter shows beside the numbers. */
+  let hpPercent = $derived(boss.isDead || hp <= 0 || boss.maxHp <= 0 ? 0 : (hp / boss.maxHp) * 100);
+
   let hpSplit = $derived(abbreviateNumberSplit(boss.isDead ? 0 : hp));
   let maxHpSplit = $derived(abbreviateNumberSplit(boss.maxHp));
   let shieldSplit = $derived(abbreviateNumberSplit(shield));
@@ -80,6 +83,7 @@
         (+{shieldSplit[0]}{shieldSplit[1]})
       </span>
     {/if}
+    <span class="ml-1">({hpPercent.toFixed(1)}<span class="text-xs">%</span>)</span>
   </span>
 
   {#if currentBars > 0 && totalBars > 1}

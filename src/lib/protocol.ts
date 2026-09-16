@@ -26,7 +26,9 @@ export type LiveMessage =
   | { type: "bossStatus"; data: BossStatus | null }
   | { type: "encounterInfo"; data: EncounterFrame }
   | { type: "partyUpdate"; data: string[][] | null }
-  | { type: "meterStatus"; data: MeterStatus };
+  | { type: "meterStatus"; data: MeterStatus }
+  /** How many viewers the host currently has, sent as they come and go. */
+  | { type: "viewerCount"; data: number };
 
 /**
  * Narrow an arbitrary DataConnection payload to a message we understand.
@@ -38,7 +40,13 @@ export function asLiveMessage(raw: unknown): LiveMessage | null {
   if (typeof raw !== "object" || raw === null) return null;
 
   const { type } = raw as { type?: unknown };
-  if (type === "bossStatus" || type === "encounterInfo" || type === "partyUpdate" || type === "meterStatus") {
+  if (
+    type === "bossStatus" ||
+    type === "encounterInfo" ||
+    type === "partyUpdate" ||
+    type === "meterStatus" ||
+    type === "viewerCount"
+  ) {
     return raw as LiveMessage;
   }
 

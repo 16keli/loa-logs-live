@@ -21,6 +21,13 @@
     {dps[0]}<span class="text-xs opacity-70">{dps[1]}</span>
   </span>
 
+  {#if viewer.timeToKill}
+    <span class="tabular" title="Time to Kill">
+      <span class="mr-1 text-xs tracking-wide text-neutral-400 uppercase">TTK</span>
+      {viewer.timeToKill}
+    </span>
+  {/if}
+
   <span class="flex-1"></span>
 
   {#if viewer.encounter?.currentBossName}
